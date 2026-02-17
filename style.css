@@ -12,16 +12,17 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: linear-gradient(#EEEEFF, #C8C7FF)
+    background: linear-gradient(#f0a7ff, #fff3d2)
 }
 
 .chatbot-popup {
     position: relative;
     width: 420px;
+    height: 680px;
     background: #fff;
     overflow: hidden;
     border-radius: 10px;
-    box-shadow: 0 0 128px 0 rgba(0,0,0,0.1), 0 32px 64px -48px rgba(0,0,0,0.1)
+    box-shadow: 0 0 128px 0 rgba(0,0,0,0.2), 0 32px 64px -48px rgba(0,0,0,0.1)
 }
 
 .chat-header {
@@ -100,6 +101,13 @@ body {
   align-items: flex-start;
 }
 
+.chat-body .bot-name {
+  color: #5e254c;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-align: left;
+}
+
 .chat-body .bot-message .bot-avatar {
     height: 40px;
     width: 40px;
@@ -132,7 +140,7 @@ body {
 }
 
 .chat-body .user-message .message-text {
-  background: #7F3267;
+  background: #5e254c;
   border-radius: 5px 5px 0px 5px;
   color: white;
 }
@@ -183,12 +191,18 @@ body {
 .chat-footer {
   position: absolute;
   bottom: 0;
-  width: 90%;
+  width: 100%;
   background-color: #fff;
   padding: 15px 22px 20px;
+
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  
 }
 
 .chat-footer .chat-form {
+  flex: 1;
   display: flex;
   align-items: center;
   background: #fff;
@@ -209,8 +223,34 @@ body {
 
 .chat-form .chat-controls {
   display: flex;
-  align-items: cetner;
+  height: 47px;
+  gap: 3px;
+  align-items: center;
   align-self: flex-end;
   padding-right: 6px;
+}
 
+.chat-form .chat-controls button {
+  height: 35px;
+  width: 35px;
+  border: none;
+  cursor: pointer;
+  color: #5e254c;
+  background: #ffffff;
+}
+
+.chat-footer .send-btn {
+  height: 47px;
+  width: 47px;
+  border: none;
+  cursor: pointer;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: -10px;
+}
+
+.chat-footer .send-btn.send-btn:click {
+  
 }
