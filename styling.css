@@ -1,0 +1,370 @@
+/* ==========================================
+  WCU HR AI - Main Styles
+   ========================================== */
+
+/* Brand colors */
+:root {
+  --purple-dark: #561530;
+  --purple: #811844;
+  --purple-light: #9E1C60;
+  --yellow: #F5AD18;
+
+  /* Grays */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Fonts */
+  --font-sans: 'Nunito', sans-serif;
+  --font-heading: 'Quicksand', sans-serif;
+}
+
+/* === Global Styles === */
+
+div {
+  width: 400px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  scroll-behavior: smooth;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex-grow: 1;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Container Gradient */
+.chat-corner-1 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10rem;
+  height: 10rem;
+  background-color: yellow;
+  border-radius: 9999px;
+  margin-left: -2.5rem;
+  margin-top: -2.5rem;
+  opacity: 0.5;
+  filter: blur(40px);
+}
+
+.chat-corner-2 {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10rem;
+  height: 10rem;
+  background-color: purple;
+  border-radius: 9999px;
+  margin-right: -2.5rem;
+  margin-bottom: -2.5rem;
+  opacity: 0.5;
+  filter: blur(40px);
+}
+
+/* === Layout === */
+.chat-box {
+  background-color: var(--gray-50);
+    
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.chat-box > :first-child {
+  margin-top: auto;
+}
+.chat-boxalt {
+  padding: 1rem 0;
+}
+
+.chat-top {
+  background-color: var(--purple-dark);
+  color: var(--yellow);
+  padding: 1rem;
+}
+
+/* Grids */
+.chat-grid {
+  display: grid;
+  align-items: center;
+  gap: 1rem;
+  grid-template-columns: auto 1fr;
+
+  padding: 1rem;
+}
+
+.grid-user {
+  grid-template-columns: 1fr;
+  padding: 1rem 0rem;
+}
+
+.grid-input {
+  background-color: var(--gray-200);
+  padding: 1rem;
+
+  grid-template-columns: 1fr auto;
+}
+.grid-alt {
+  display: grid;
+  background: var(--gray-200);
+  padding: 1rem 1rem 0 1rem;
+  width: 100%;
+
+  grid-template-columns: auto 1fr;
+}
+
+/* Cards */
+.chat-card {
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: fit-content;
+}
+.chat-card-rammy {
+  background: var(--gray-200);
+  border-radius: 1rem 1rem 1rem 0;
+  max-width: 75%;
+  margin-right: auto; 
+}
+.chat-card-user {
+  background: var(--yellow);
+  border-radius: 1rem 1rem 0 1rem;
+
+  margin-left: auto;
+  margin-right: 1rem;
+}
+.chat-card-input {
+  background: var(--gray-50);
+  border: none;
+  box-shadow: none;
+  font-size: medium;
+  border-radius: 2rem;  
+
+  width: auto;
+}
+.chat-card-rammyalt {
+  background: transparent;
+  width: fit-content;
+
+  margin-left: 0;
+  margin-right: auto; 
+
+  box-shadow: none;
+  flex-direction: column;
+}
+
+.profile-card {
+  width: 3rem;
+  height: 3rem;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Time stamps (Revise) */ 
+.timestamp {
+  color: var(--gray-400);
+  font-size: x-small;
+
+  padding: 1rem;
+}
+.timestamp-rammy {
+  text-align: left;
+  margin-left: 2rem;
+}
+.timestamp-user {
+  text-align: right;
+  margin-right: 2rem;
+}
+
+/* === Button Styles === */
+.send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 100%;
+  color: var(--gray-400);
+
+  background: transparent;
+  border: none;
+  font-size: x-large;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center; 
+
+  transition: background-color 0.2s ease;
+}
+
+.send-btn:hover {
+  background-color: var(--gray-300); 
+ }
+
+/* === Utility Classes === */
+.text-center {
+  text-align: center;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.rounded-xl {
+  border-radius: 0.75rem;
+}
+
+.rounded-2xl {
+  border-radius: 1rem;
+}
+
+.rounded-3xl {
+  border-radius: 1.5rem;
+}
+
+.rounded-full {
+  border-radius: 9999px;
+}
+
+/* === Animations === */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes blob {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(20px, -20px) scale(1.1);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  75% {
+    transform: translate(20px, 20px) scale(1.05);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-bounce {
+  animation: bounce 3s ease-in-out infinite;
+}
+
+.animate-blob {
+  animation: blob 7s ease-in-out infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+.animate-ping {
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

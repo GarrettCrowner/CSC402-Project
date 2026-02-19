@@ -1,0 +1,311 @@
+/* ==========================================
+   About Page Styles
+   ========================================== */
+
+/* === Intro Section === */
+.about-intro {
+  padding-top: 7rem;
+  padding-bottom: 5rem;
+}
+
+.about-intro-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .about-intro-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.about-subtitle {
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  padding: 40px;
+}
+
+.about-title {
+  font-size: 2.5rem;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .about-title {
+    font-size: 3rem;
+  }
+}
+
+.about-text {
+  font-size: 1.125rem;
+  color: var(--gray-600);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.about-highlight {
+  font-weight: 700;
+  color: var(--brand-600);
+}
+
+.about-intro-image {
+  position: relative;
+}
+
+.about-image-border {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, var(--brand-200), rgba(239, 68, 68, 0.3));
+  border-radius: 1.5rem;
+  transform: rotate(3deg) translate(1rem, 1rem);
+}
+
+.about-image {
+  position: relative;
+  width: 100%;
+  border-radius: 1.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* === Values Section === */
+.about-values {
+  background-color: var(--brand-50);
+  padding: 5rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.about-values-blob-1 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8rem;
+  height: 8rem;
+  background-color: #fef08a;
+  border-radius: 9999px;
+  margin-left: -2.5rem;
+  margin-top: -2.5rem;
+  opacity: 0.5;
+  filter: blur(40px);
+}
+
+.about-values-blob-2 {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10rem;
+  height: 10rem;
+  background-color: #bfdbfe;
+  border-radius: 9999px;
+  margin-right: -2.5rem;
+  margin-bottom: -2.5rem;
+  opacity: 0.5;
+  filter: blur(40px);
+}
+
+.about-values .container {
+  position: relative;
+  z-index: 10;
+}
+
+.about-values .section-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.values-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .values-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.goals-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.goals-grid {
+  display: inline-grid;    
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .goals-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.value-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid;
+}
+
+.value-red {
+  border-top-color: var(--accent);
+}
+
+.value-yellow {
+  border-top-color: #fbbf24;
+}
+
+.value-blue {
+  border-top-color: var(--brand-500);
+}
+
+.value-green {
+  border-top-color: var(--rainbow-green);
+}
+
+.value-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  
+}
+
+.value-icon svg {
+  width: 50%;      
+  height: 50%;
+  display: block;  
+}
+
+.value-icon-red {
+  background: #fee2e2;
+  color: var(--accent);
+}
+
+.value-icon-yellow {
+  background: #fef3c7;
+  color: #eab308;
+}
+
+.value-icon-blue {
+  background: var(--brand-100);
+  color: var(--brand-600);
+}
+
+.value-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 0.75rem;
+}
+
+.value-description {
+  color: var(--gray-600);
+  line-height: 1.6;
+}
+
+/* === Team Section === */
+.about-team {
+  padding: 5rem 0;
+}
+
+.about-team .section-header {
+  text-align: center;
+  max-width: 48rem;
+  margin: 0 auto 4rem;
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  .team-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .team-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.team-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.team-member-image-wrapper {
+  position: relative;
+  width: 12rem;
+  height: 12rem;
+  margin-bottom: 1.5rem;
+}
+
+.team-member-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 4px solid rgba(239, 68, 68, 0.2);
+  transform: rotate(-6deg);
+  transition: transform 0.3s ease;
+}
+
+.team-member:hover .team-member-border {
+  transform: rotate(6deg);
+}
+
+.team-member-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9999px;
+  border: 4px solid white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.team-member-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 0.5rem;
+}
+
+.team-member-role {
+  color: var(--brand-600);
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.team-member-bio {
+  color: var(--gray-500);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 20rem;
+}
