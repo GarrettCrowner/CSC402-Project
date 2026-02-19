@@ -5,10 +5,6 @@ function scrollToBottom() {
 
 
 
-
-
-// Center for Connecting Kids LLC - Main JavaScript
-
 // ===================================
 // Navbar Scroll Effect
 // ===================================
