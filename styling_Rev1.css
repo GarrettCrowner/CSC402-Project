@@ -1,0 +1,217 @@
+/* Notes
+Flexbox & Grid Alignment
+justify-content = Controls horizontal alignment (along the main axis).
+align-items = Controls vertical alignment (along the cross axis).
+place-items = A shorthand command that centers content both ways at once.
+flex-start = Aligns elements to the beginning (left or top).
+flex-end = Aligns elements to the end (right or bottom).
+center = Moves elements to the exact middle.
+space-between = Spreads items out so the first is at the start and the last is at the end.
+space-around = Gives items equal space on both sides.
+
+Display Properties
+display = The "layout engine" that decides how an element sits on the page.
+block = Takes up the full width available; starts on a new line (like a <p> or <div>).
+inline = Only takes up as much width as necessary; doesn't start a new line (like a <span>).
+inline-block = Sits in a line like text, but lets you set a specific width and height.
+flex = Turns on Flexbox, making it easy to align children in rows or columns.
+grid = Turns on Grid, allowing for complex layouts with rows and columns simultaneously.
+none = The "invisibility cloak"—completely removes the element from the layout.
+
+Spacing & Sizing
+padding = The "inner cushion"—creates space inside an element between the border and the content.
+gap = The "social distancing" tool—sets a specific distance between children in a Flex or Grid container.
+margin = The "outer buffer"—creates space outside an element, pushing other tags away from it.
+*/
+
+/* ==========================================
+  WCU HR AI - Main Styles
+   ========================================== */
+
+/* Brand colors */
+:root {
+  --purple: #6E3061;
+  --yellow: #FFAE2E;
+
+  /* Grays */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Fonts >1.15em for ADA */
+  --font-sans: 'Nunito', sans-serif;
+  --font-heading: 'Quicksand', sans-serif;
+}
+
+/* === Global Styles === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+}
+button {
+  background-color: transparent;
+  border-radius: 100%;
+  cursor: pointer;
+/* Centers content */
+  display: flex;
+  justify-content: center; 
+  align-items: center;  
+/* Removes border and adds effect */
+  border: none;
+  transition: background-color 0.2s ease;
+}
+button:hover {
+  background-color: #d1d5db90
+}
+
+input {
+  border: none;
+  outline: none;
+}
+
+/* === Layout (Rev1) === */
+#send-btn {
+  width: 50px;
+  height: 50px;
+  color: var(--gray-400);
+  font-size: x-large;
+}
+#chat-close-btn {
+  justify-self: start;
+}
+#chat-options-btn {
+  justify-self: end;
+}
+#chat-header button {
+  color: var(--yellow);
+  width: 30px;
+  height: 30px;
+  font-weight: 700;
+  font-size: large;
+}
+
+#chat-container {
+  width: 400px;
+  display: flex;       
+  flex-direction: column;
+  flex: 1;
+}
+#message-container {
+  height: 600px; 
+  background-color: var(--gray-50);
+  padding: 1rem;
+  gap: .75rem; 
+  /* Stacks messages, makes container scrollable */
+  display: flex;       
+  flex-direction: column;
+  overflow-y: auto;
+  justify-content: flex-start; /* Forces messages to the TOP */
+  align-items: stretch; 
+}
+.agent-bubble {
+  background: var(--gray-200);
+  border-radius: 1rem;
+  padding: 1rem;
+  max-width: 85%;
+  /* Aligns bubble to left, fixed margin */
+  align-self: flex-start;
+}
+.user-bubble {
+  background: var(--gray-200);
+  border-radius: 1rem;
+  padding: 1rem;
+  max-width: 85%;
+  /* Aligns bubble to right, fixed margin */
+  align-self: flex-end;
+}
+
+#chat-header {
+  background-color: var(--purple);
+  color: var(--yellow);
+  padding: 1rem;
+  /* Centers close button, header, and options */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+#chat-footer {
+  background-color: var(--gray-200);
+  padding: 1rem;
+}
+#chat-user-form {
+  gap: .75rem;
+  /* Grids input and button */
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  justify-content: center; 
+}
+#chat-user-input {
+  background: var(--gray-50);
+  border-radius: 1rem;  
+  padding: 1rem;
+  font-size: small;
+}
+
+.dot {
+  width: .5rem;
+  height: .5rem;
+  background-color: var(--gray-400);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+#loading-bubble {
+  display: flex;
+  gap: .25rem;
+  padding: 1rem; /* Match your normal bubble padding */
+  width: fit-content;
+  background-color: var(--gray-100); /* Give it a light background while loading */
+  border-radius: 1rem;
+}
+
+/* Layout for the wrapper */
+.user-msg-wrapper, .agent-msg-wrapper {
+    display: flex;
+    flex-direction: column; /* Stack bubble on top of name */
+    margin-top: -1rem; /* Removes the wrapper gap in thread */
+}
+/* Align user messages to the right */
+.user-msg-wrapper {
+    align-items: flex-end;
+}
+/* Align agent messages to the left */
+.agent-msg-wrapper {
+    align-items: flex-start;
+}
+/* Styling the name tag */
+.profile-name {
+    font-size: .75rem;
+    color: var(--gray-400);
+    margin-top: .25rem; /* Space between bubble and name */
+    padding: 0 .25rem;
+    font-family: sans-serif;
+    text-transform: uppercase;
+}
+
+
+
+
