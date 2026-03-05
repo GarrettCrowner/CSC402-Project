@@ -1,388 +1,535 @@
 import os
+import re
 import time
 import threading
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import psutil
+import requests
+from bs4 import BeautifulSoup
 from openai import OpenAI
 
 # -----------------------------
-# API KEY
+# CONFIG
 # -----------------------------
-OPENAI_API_KEY = ""  # <-- PASTE YOUR API KEY HERE (remove before sharing)
-OPENAI_ORG_ID = ""          # org_... (optional)
-OPENAI_PROJECT_ID = ""      # proj_... (optional)
+OPENAI_API_KEY = ""
+OPENAI_ORG_ID = ""
+OPENAI_PROJECT_ID = ""
 
+MODEL = "gpt-4.1-mini"
 
-# -----------------------------
-# HR FAQ KNOWLEDGE (PASTED)
-# -----------------------------
-HR_FAQ_TEXT = r"""
-EMPLOYMENT (Faculty & Staff)
-How do I apply for a job or see which jobs are available?
-Check out WCU Career Opportunities to see all open positions and apply. We update multiple times a week with current opportunities.
-
-What if I don't have computer access to apply online?
-You can visit the Office of Human Resources to use a WCU computer Monday through Friday from 8:00 AM to 4:00 PM at 201 Carter Drive, Suite 100.
-
-What happens after I apply?
-WCU reviews every application to find the best candidates and to ensure a fair and equitable search. We do not rely on application systems to make these important decisions so the search process can take longer.
-
-How do I know if my application was received?
-A confirmation email will be sent to your e-mail address.
-
-How do I check the status of my application?
-You can contact the Office of Human Resources at hrs@wcupa.edu or 610-436-2591.
-
-Will you notify me when the job I applied to has been filled?
-When we are ready to offer you the position or you are no longer in consideration, you will be contacted via email or by phone.
-
-How long does it take for me to hear back about a staff position?
-It takes about two to four weeks to hear back about a staff position after the posting period has closed.
-
-What does “internal” mean on a job posting?
-An internal job posting is designed to only consider current employees. While this type of posting is not available to external candidates, filling a role internally will result in job vacancies and additional future opportunities.
-
-How do I make changes or add an attachment to an application that I have submitted?
-After your application has been submitted, it cannot be modified. If changes need to be made or new documents need to be added, email hrs@wcupa.edu and be sure to include your name, the search number, and the document you would like updated.
-
-Can I apply for multiple jobs?
-Yes, we encourage you to apply to multiple positions to find the one that is right for you. An application must be submitted for each position.
-
-I forgot my password? How do I reset my password?
-Simply click Reset Password.
-
-Where can I learn more about union/collective bargaining agreement information (AFSCME, SCUPA, POA, SPFPA, OPEIU, APSCUF, nonrepresented)?
-To learn about union/ collective bargaining agreement information visit Union Information.
-
-Can my business advertise hiring students?
-Yes. To advertise a job visit Twardowski Career Development Center.
-
-What happens after I accept and offer for a position?
-You will receive a DocuSign email with directions on how to complete new hire forms and an email from our Compliance Department with instructions and payment codes to begin the background check process.
-
-STUDENT EMPLOYMENT
-How do I apply for student employment?
-To apply for student employment, visit Handshake.
-
-Where do I apply for graduate student employment?
-Enrolled students (those with WCU login credentials) must apply for GA positions through Handshake. You must login to view available positions and submit applications through Handshake.
-Newly admitted students (those without WCU login credentials) can view available GA positions here. You must email your application materials to the contact person listed for the position.
-
-Can my business advertise jobs to WCU students?
-Yes. To advertise a job visit Twardowski Career Development Center.
-
-I’m a student worker. How will I be paid?
-Students receive compensation via direct deposit for their hours worked. All employees are paid biweekly on a delayed payroll schedule.
-
-I’m working but I haven’t gotten paid.
-Students may not begin working until Human Resources receives and processes new hire forms. If a student has completed the new hire forms and cannot log hours in eTime, please reach out to Student Employment.
-
-Are international students eligible for student employment?
-International students may apply for on-campus student employment opportunities. Please note:
-- International students are limited in the number of hours they may work during the semester, as well as during summer and university breaks.
-- International students are not eligible for Federal Work Study positions on campus.
-- Working without proper authorization could jeopardize F-1 status.
-For more information, visit the Global Engagement Office. You may also email the Global Engagement Office or call 610-436-3515.
-
-How do I enter my student employment hours in eTime?
-Log into the Employee Self Service (ESS) Portal. For help, visit eTime Help.
-
-What documents are acceptable to complete the form I-9 verification?
-Visit Acceptable I-9 Supporting Documents for a list of options.
-
-How many hours per week can student employees work?
-Students may work up to 20 hours per week during the academic year, with the possibility to work more hours over summer or winter breaks.
-
-Can student employees work internationally?
-West Chester University does not offer international employment opportunities. Student employees, including international students, are not eligible to work internationally (i.e., working remotely while outside of the country).
-
-BACKGROUND CHECKS
-Does WCU require clearances to work? How long are my clearances good for employment?
-Yes. WCU requires the PA State Police, Child Abuse, and FBI clearances to be on file in the Office of Human Resources. All three clearances are valid for five years from the date of the clearance results.
-
-Am I financially responsible for the payment of any clearances?
-No. Currently, the University is covering all background clearance expenses for faculty, staff, student workers, contractors, and volunteers. Any employee who has clearances completed on their own will not be reimbursed for associated costs and will need to have the clearances completed again using the codes provided by the Compliance Department.
-
-Do student employees need to complete background checks?
-Yes. All student employment positions require the PA State Police, Child Abuse, and FBI clearances. After the new student hire forms is completed through the Office of Human Resources, the clearance process will begin within 72 hours (about 3 days).
-
-I’m a student and I completed background checks for my major. Can I use these for employment at WCU?
-No. Department of Education FBI fingerprint clearances are not acceptable, per Pennsylvania State System legal counsel. New fingerprints must be collected with WCU-HR through the PA Department of Human Services.
-
-Can I still apply to work at WCU if I’ve been convicted of a criminal offense?
-Yes. Each background clearance is reviewed by the Compliance Department on a case-by-case basis. Failure to disclose criminal convictions on one’s employment application or making false statements during the screening or interview process will result in disqualification from employment, regardless of when the falsification is discovered by the University.
-
-Do I need to disclose a previous criminal offense within the application?
-Yes. A conviction is an adjudication of guilt, concluding determination before a district justice or in criminal court, resulting in a legal penalty such as a fine, sentence, or probation. Minor traffic violations can be omitted. Disclosure of prior criminal history is not a barrier to employment, depending on the nature of the offense and other considerations. Failure to truthfully and/or accurately disclose a conviction of a criminal offense will result in a bar from employment with West Chester University.
-"""
+ALLOWED_URLS = [
+    "https://www.wcupa.edu/hr/faqs.aspx",
+    "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
+    "https://www.passhe.edu/hr/benefits/life-events/index.html",
+    "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
+    "https://www.wcupa.edu/hr/FMLA.aspx",
+    "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
+]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
 
-MODELS = {
-    "1": ("5.2", "gpt-5.2"),
-    "2": ("5 mini", "gpt-5-mini"),
-    "3": ("4.1", "gpt-4.1"),
-    "4": ("4.1 mini", "gpt-4.1-mini"),
-    "5": ("4.1 nano", "gpt-4.1-nano"),
-}
+PII_WARNING_REPLY = (
+    "For your privacy, please do not include personal information in chat. "
+    "Please remove names, addresses, emails, phone numbers, ID numbers, or any "
+    "government or banking information, then ask again."
+)
+
+IDENTITY_REPLY = (
+    "I’m Rammy, the West Chester University mascot and your HR chatbot. "
+    "I’m here to help with HR-related questions."
+)
+
+# -----------------------------
+# SMALL TALK
+# -----------------------------
+_GREETING_RE = re.compile(
+    r"^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b",
+    re.IGNORECASE,
+)
+
+_HOW_ARE_YOU_RE = re.compile(
+    r"^\s*(how\s+are\s+you|hru|how's\s+it\s+going)\b",
+    re.IGNORECASE,
+)
+
+_GOODBYE_RE = re.compile(
+    r"^\s*(bye|goodbye|see\s+ya|later|take\s+care)\b",
+    re.IGNORECASE,
+)
+
+_WHO_ARE_YOU_RE = re.compile(
+    r"^\s*(who are you|what are you|who is rammy|what is rammy)\??\s*$",
+    re.IGNORECASE,
+)
+
+
+def small_talk_kind(text: str) -> Optional[str]:
+    t = text.strip()
+    if _GREETING_RE.search(t):
+        return "greeting"
+    if _HOW_ARE_YOU_RE.search(t):
+        return "how_are_you"
+    if _GOODBYE_RE.search(t):
+        return "goodbye"
+    if _WHO_ARE_YOU_RE.search(t):
+        return "identity"
+    return None
 
 
 # -----------------------------
-# Optional NVIDIA GPU sampling
+# PII DETECTION
 # -----------------------------
-class NvidiaSampler:
-    def __init__(self) -> None:
-        self.available = False
-        self._pynvml = None
-        self._handles = []
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
+PHONE_RE = re.compile(
+    r"\b(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.]?)\d{3}[\s\-.]?\d{4}\b"
+)
+
+SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+STREET_ADDRESS_RE = re.compile(
+    r"\b\d{1,6}\s+[A-Za-z0-9.\- ]+\s+"
+    r"(street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|boulevard|blvd|way|place|pl)\b",
+    re.IGNORECASE,
+)
+
+NAME_INTRO_RE = re.compile(
+    r"\b(my name is|this is)\s+[A-Za-z]+(?:\s+[A-Za-z]+){0,2}\b",
+    re.IGNORECASE,
+)
+
+LONG_ID_RE = re.compile(r"\b\d{6,}\b")
+
+BANK_CARD_RE = re.compile(r"\b(?:\d[ -]*?){13,16}\b")
+
+
+def contains_pii(text: str) -> bool:
+    if not text or not text.strip():
+        return False
+
+    if EMAIL_RE.search(text):
+        return True
+    if PHONE_RE.search(text):
+        return True
+    if SSN_RE.search(text):
+        return True
+    if STREET_ADDRESS_RE.search(text):
+        return True
+    if BANK_CARD_RE.search(text):
+        return True
+    if NAME_INTRO_RE.search(text):
+        return True
+    if LONG_ID_RE.search(text):
+        return True
+
+    return False
+
+
+# -----------------------------
+# TEXT CLEANING
+# -----------------------------
+def normalize_text(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def html_to_text(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    for tag in soup(["script", "style", "noscript", "svg", "header", "footer", "nav"]):
+        tag.decompose()
+
+    text = soup.get_text("\n")
+    text = normalize_text(text)
+
+    if len(text) > 150000:
+        text = text[:150000]
+
+    return text
+
+
+# -----------------------------
+# FETCHING
+# -----------------------------
+def fetch_sources() -> Dict[str, str]:
+    headers = {"User-Agent": "RammyHRBot"}
+    pages = {}
+
+    for url in ALLOWED_URLS:
         try:
-            import pynvml  # type: ignore
-            pynvml.nvmlInit()
-            self._pynvml = pynvml
-            count = pynvml.nvmlDeviceGetCount()
-            self._handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(count)]
-            self.available = count > 0
-        except Exception:
-            self.available = False
+            r = requests.get(url, headers=headers, timeout=20)
+            r.raise_for_status()
+            pages[url] = html_to_text(r.text)
+        except Exception as e:
+            pages[url] = f"FETCH ERROR {e}"
 
-    def sample(self) -> Dict[str, Any]:
-        if not self.available or self._pynvml is None:
-            return {"available": False}
-
-        pynvml = self._pynvml
-        gpus = []
-        for i, h in enumerate(self._handles):
-            try:
-                util = pynvml.nvmlDeviceGetUtilizationRates(h)
-                mem = pynvml.nvmlDeviceGetMemoryInfo(h)
-                name = pynvml.nvmlDeviceGetName(h).decode("utf-8", errors="ignore")
-                gpus.append(
-                    {
-                        "index": i,
-                        "name": name,
-                        "util_gpu_pct": float(util.gpu),
-                        "util_mem_pct": float(util.memory),
-                        "mem_used_mb": float(mem.used) / (1024 * 1024),
-                        "mem_total_mb": float(mem.total) / (1024 * 1024),
-                    }
-                )
-            except Exception:
-                continue
-        return {"available": True, "gpus": gpus}
+    return pages
 
 
-@dataclass
-class PerfStats:
-    latency_s: float
-    cpu_pct_avg: float
-    cpu_pct_max: float
-    rss_mb_avg: float
-    rss_mb_max: float
-    gpu_util_pct_max: Optional[float]
-    gpu_mem_used_mb_max: Optional[float]
+# -----------------------------
+# CHUNKING / KNOWLEDGE
+# -----------------------------
+def split_into_chunks(text: str, url: str) -> List[Dict[str, str]]:
+    chunks = []
+
+    raw_parts = re.split(r"(?<=[\.\?\!])\s+|(?<=:)\s+", text)
+
+    current = []
+    current_len = 0
+    max_len = 700
+
+    for part in raw_parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        if current_len + len(part) > max_len and current:
+            chunk_text = " ".join(current).strip()
+            if len(chunk_text) > 40:
+                chunks.append({"url": url, "text": chunk_text})
+            current = [part]
+            current_len = len(part)
+        else:
+            current.append(part)
+            current_len += len(part)
+
+    if current:
+        chunk_text = " ".join(current).strip()
+        if len(chunk_text) > 40:
+            chunks.append({"url": url, "text": chunk_text})
+
+    return chunks
 
 
-def monitor_resources(stop_evt: threading.Event, interval_s: float = 0.2) -> Dict[str, Any]:
-    proc = psutil.Process(os.getpid())
-    gpu = NvidiaSampler()
+def build_chunks(pages: Dict[str, str]) -> List[Dict[str, str]]:
+    all_chunks = []
+    for url in ALLOWED_URLS:
+        page_text = pages.get(url, "")
+        if page_text.startswith("FETCH ERROR"):
+            continue
+        all_chunks.extend(split_into_chunks(page_text, url))
+    return all_chunks
 
-    cpu_samples: List[float] = []
-    rss_samples: List[float] = []
-    gpu_util_samples: List[float] = []
-    gpu_mem_samples: List[float] = []
 
-    psutil.cpu_percent(interval=None)
+# -----------------------------
+# QUERY NORMALIZATION
+# -----------------------------
+def normalize_question_for_search(q: str) -> str:
+    q = q.lower().strip()
 
-    while not stop_evt.is_set():
-        cpu_samples.append(psutil.cpu_percent(interval=None))
-        rss_samples.append(proc.memory_info().rss / (1024 * 1024))
-
-        g = gpu.sample()
-        if g.get("available") and g.get("gpus"):
-            util_max = max((x.get("util_gpu_pct", 0.0) for x in g["gpus"]), default=0.0)
-            mem_used_max = max((x.get("mem_used_mb", 0.0) for x in g["gpus"]), default=0.0)
-            gpu_util_samples.append(float(util_max))
-            gpu_mem_samples.append(float(mem_used_max))
-
-        time.sleep(interval_s)
-
-    def safe_avg(xs: List[float]) -> float:
-        return float(sum(xs) / len(xs)) if xs else 0.0
-
-    def safe_max(xs: List[float]) -> float:
-        return float(max(xs)) if xs else 0.0
-
-    return {
-        "cpu_avg": safe_avg(cpu_samples),
-        "cpu_max": safe_max(cpu_samples),
-        "rss_avg": safe_avg(rss_samples),
-        "rss_max": safe_max(rss_samples),
-        "gpu_util_max": safe_max(gpu_util_samples) if gpu_util_samples else None,
-        "gpu_mem_used_max": safe_max(gpu_mem_samples) if gpu_mem_samples else None,
+    replacements = {
+        r"\bchange\b": "update",
+        r"\bmodify\b": "update",
+        r"\bedit\b": "update",
+        r"\bemail address\b": "email",
+        r"\bhome address\b": "address",
+        r"\bam i able to\b": "",
+        r"\bcan i\b": "",
+        r"\bhow do i\b": "",
+        r"\bhow can i\b": "",
+        r"\bwhere do i\b": "",
+        r"\bwhat is\b": "",
+        r"\bplease\b": "",
     }
 
+    for pattern, repl in replacements.items():
+        q = re.sub(pattern, repl, q)
 
-def build_instructions() -> str:
+    q = re.sub(r"[^a-z0-9\s]", " ", q)
+    q = normalize_text(q)
+    return q
+
+
+def tokenize(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def score_chunk(question: str, chunk: str) -> float:
+    q_norm = normalize_question_for_search(question)
+    c_norm = normalize_question_for_search(chunk)
+
+    q_tokens = tokenize(q_norm)
+    c_tokens = set(tokenize(c_norm))
+
+    if not q_tokens:
+        return 0.0
+
+    score = 0.0
+
+    for token in q_tokens:
+        if token in c_tokens:
+            score += 1.0
+
+    phrase_boosts = [
+        ("update address", 4.0),
+        ("address", 2.0),
+        ("email", 2.0),
+        ("employee self service", 3.0),
+        ("ess", 3.0),
+        ("forgiveness form", 3.0),
+        ("loan forgiveness", 3.0),
+        ("employee group", 3.0),
+        ("fmla", 3.0),
+    ]
+
+    for phrase, value in phrase_boosts:
+        if phrase in q_norm and phrase in c_norm:
+            score += value
+
+    return score
+
+
+def retrieve_relevant_chunks(question: str, chunks: List[Dict[str, str]], top_k: int = 5) -> List[Dict[str, str]]:
+    scored = []
+    for chunk in chunks:
+        s = score_chunk(question, chunk["text"])
+        if s > 0:
+            scored.append((s, chunk))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [chunk for _, chunk in scored[:top_k]]
+
+
+def build_context(question: str, chunks: List[Dict[str, str]]) -> str:
+    selected = retrieve_relevant_chunks(question, chunks, top_k=5)
+
+    if not selected:
+        return ""
+
+    parts = []
+    for i, chunk in enumerate(selected, start=1):
+        parts.append(f"Source {i}: {chunk['url']}\n{chunk['text']}")
+
+    return "\n\n".join(parts)
+
+
+# -----------------------------
+# PROMPTS
+# -----------------------------
+def build_hr_instructions(context: str) -> str:
     return f"""
-You are an internal HR FAQ assistant for West Chester University (WCU).
-You MUST answer using ONLY the information contained in the provided HR FAQ text.
+You are Rammy, the West Chester University mascot.
 
-If the HR FAQ text does not explicitly contain the answer, reply with exactly:
-{OUT_OF_SCOPE_REPLY}
+You are an HR assistant.
 
-Do not add extra advice, links, or contact info unless it is explicitly present in the HR FAQ text.
-Keep answers brief and directly responsive.
+Rules:
+- Only answer HR-related questions.
+- Use only the context provided below.
+- If the answer is not in the context, reply exactly: {OUT_OF_SCOPE_REPLY}
+- If the question is not HR-related, reply exactly: {OUT_OF_SCOPE_REPLY}
+- Treat similar user wording as the same intent. For example:
+  - change address = update address
+  - modify address = update address
+  - can I update my address = how do I update my address
+- If the context clearly answers the question, respond naturally in 1-3 sentences.
+- Do not mention context or sources.
+- Do not use markdown.
+- Do not use bullet points.
 
-HR FAQ TEXT START
-{HR_FAQ_TEXT}
-HR FAQ TEXT END
+Context:
+{context}
 """.strip()
 
 
-def pretty_error(e: Exception) -> str:
-    msg = str(e)
-    if "Unsupported parameter" in msg and "temperature" in msg:
-        return "[ERROR] This model does not support the 'temperature' parameter. (Fixed by removing temperature from requests.)"
-    if "Missing scopes" in msg or "insufficient permissions" in msg:
-        return "[ERROR] Your API key/org does not have permission to use this model or endpoint (missing scopes)."
-    return f"[ERROR] {type(e).__name__}: {e}"
+def build_smalltalk_prompt(user_text: str) -> str:
+    return f"""
+You are Rammy, the West Chester University mascot.
+
+The user said:
+{user_text}
+
+Respond naturally like a friendly mascot talking to a person.
+Keep it short.
+Ready to answer HR-related questions.
+Use 1 or 2 sentences.
+You may answer questions about who or what you are.
+Do not answer non-HR questions beyond simple small talk.
+""".strip()
 
 
-def ask_model(client: OpenAI, model: str, question: str) -> Tuple[str, PerfStats]:
+# -----------------------------
+# PERFORMANCE MONITOR
+# -----------------------------
+@dataclass
+class PerfStats:
+    latency: float
+    cpu_max: float
+    ram_max: float
+
+
+def monitor_resources(stop_evt):
+    proc = psutil.Process(os.getpid())
+
+    cpu_samples = []
+    ram_samples = []
+
+    while not stop_evt.is_set():
+        cpu_samples.append(psutil.cpu_percent())
+        ram_samples.append(proc.memory_info().rss / (1024 * 1024))
+        time.sleep(0.2)
+
+    return {
+        "cpu": max(cpu_samples) if cpu_samples else 0,
+        "ram": max(ram_samples) if ram_samples else 0,
+    }
+
+
+# -----------------------------
+# MODEL CALL
+# -----------------------------
+def ask_model(client, question: str, chunks: List[Dict[str, str]], history: List[Dict[str, str]]) -> Tuple[str, PerfStats]:
     stop_evt = threading.Event()
-    monitor_result: Dict[str, Any] = {}
+    monitor_result = {}
 
-    def _runner():
+    def run_monitor():
         nonlocal monitor_result
         monitor_result = monitor_resources(stop_evt)
 
-    t = threading.Thread(target=_runner, daemon=True)
-    t.start()
+    thread = threading.Thread(target=run_monitor)
+    thread.start()
 
     start = time.perf_counter()
 
     try:
-        # NOTE: we intentionally do NOT pass temperature here because
-        # some models (e.g., gpt-5-mini) reject it.
-        resp = client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": build_instructions()},
+        if contains_pii(question):
+            stop_evt.set()
+            thread.join()
+
+            latency = time.perf_counter() - start
+            stats = PerfStats(
+                latency=latency,
+                cpu_max=monitor_result.get("cpu", 0),
+                ram_max=monitor_result.get("ram", 0),
+            )
+            return PII_WARNING_REPLY, stats
+
+        kind = small_talk_kind(question)
+
+        if kind == "identity":
+            stop_evt.set()
+            thread.join()
+
+            latency = time.perf_counter() - start
+            stats = PerfStats(
+                latency=latency,
+                cpu_max=monitor_result.get("cpu", 0),
+                ram_max=monitor_result.get("ram", 0),
+            )
+            return IDENTITY_REPLY, stats
+
+        if kind:
+            system_prompt = build_smalltalk_prompt(question)
+            messages = [
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": question},
-            ],
+            ]
+        else:
+            context = build_context(question, chunks)
+
+            if not context:
+                stop_evt.set()
+                thread.join()
+
+                latency = time.perf_counter() - start
+                stats = PerfStats(
+                    latency=latency,
+                    cpu_max=monitor_result.get("cpu", 0),
+                    ram_max=monitor_result.get("ram", 0),
+                )
+                return OUT_OF_SCOPE_REPLY, stats
+
+            system_prompt = build_hr_instructions(context)
+            trimmed_history = history[-4:] if history else []
+
+            messages = [{"role": "system", "content": system_prompt}] + trimmed_history + [
+                {"role": "user", "content": question}
+            ]
+
+        response = client.responses.create(
+            model=MODEL,
+            input=messages
         )
-        answer = (getattr(resp, "output_text", "") or "").strip()
+
+        answer = response.output_text.strip()
+
         if not answer:
             answer = OUT_OF_SCOPE_REPLY
-    except Exception as e:
-        answer = pretty_error(e)
 
-    end = time.perf_counter()
+    except Exception as e:
+        answer = f"Error: {e}"
+
     stop_evt.set()
-    t.join(timeout=2.0)
+    thread.join()
+
+    latency = time.perf_counter() - start
 
     stats = PerfStats(
-        latency_s=float(end - start),
-        cpu_pct_avg=float(monitor_result.get("cpu_avg", 0.0)),
-        cpu_pct_max=float(monitor_result.get("cpu_max", 0.0)),
-        rss_mb_avg=float(monitor_result.get("rss_avg", 0.0)),
-        rss_mb_max=float(monitor_result.get("rss_max", 0.0)),
-        gpu_util_pct_max=monitor_result.get("gpu_util_max", None),
-        gpu_mem_used_mb_max=monitor_result.get("gpu_mem_used_max", None),
+        latency=latency,
+        cpu_max=monitor_result.get("cpu", 0),
+        ram_max=monitor_result.get("ram", 0),
     )
+
     return answer, stats
 
 
-def print_stats(stats: PerfStats) -> None:
-    print("\n--- Performance ---")
-    print(f"Latency: {stats.latency_s:.3f}s")
-    print(f"CPU % (avg/max): {stats.cpu_pct_avg:.1f} / {stats.cpu_pct_max:.1f}")
-    print(f"RAM RSS MB (avg/max): {stats.rss_mb_avg:.1f} / {stats.rss_mb_max:.1f}")
-    if stats.gpu_util_pct_max is None:
-        print("GPU: N/A")
-    else:
-        print(f"GPU util max: {stats.gpu_util_pct_max:.1f}%")
-        print(f"GPU mem used max: {stats.gpu_mem_used_mb_max:.1f} MB")
+# -----------------------------
+# MAIN
+# -----------------------------
+def main():
+    api_key = OPENAI_API_KEY
 
-
-def choose_model() -> str:
-    print("\nChoose a model:")
-    for k, (label, mid) in MODELS.items():
-        print(f"{k}) {label} ({mid})")
-    print("b) benchmark all models")
-    print("q) quit")
-
-    while True:
-        choice = input("> ").strip().lower()
-        if choice == "q":
-            raise SystemExit
-        if choice == "b":
-            return "__BENCH__"
-        if choice in MODELS:
-            return MODELS[choice][1]
-        print("Invalid choice. Try again.")
-
-
-def benchmark(client: OpenAI, question: str) -> None:
-    print("\nRunning benchmark across all requested models...\n")
-    results = []
-    for _, (_, model) in MODELS.items():
-        ans, stats = ask_model(client, model, question)
-        results.append((model, stats, ans))
-
-    print(f"{'Model':14} {'Latency(s)':>10} {'CPU max%':>10} {'GPU max%':>10}")
-    print("-" * 52)
-    for model, stats, _ in results:
-        gpu_str = f"{stats.gpu_util_pct_max:.1f}" if stats.gpu_util_pct_max is not None else "N/A"
-        print(f"{model:14} {stats.latency_s:10.3f} {stats.cpu_pct_max:10.1f} {gpu_str:>10}")
-
-    print("\n(Answers below)\n")
-    for model, _, ans in results:
-        print("=" * 52)
-        print(model)
-        print("-" * 52)
-        print(ans if ans else OUT_OF_SCOPE_REPLY)
-
-
-def main() -> None:
-    api_key = OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("No API key provided. Paste your API key into OPENAI_API_KEY at the top of the file.")
+        print("Add your API key to the OPENAI_API_KEY environment variable.")
         return
 
-    client = client = OpenAI(
-    api_key=api_key,
-    organization=OPENAI_ORG_ID or None,
-    project=OPENAI_PROJECT_ID or None,
-)
+    client_kwargs = {"api_key": api_key}
+    if OPENAI_ORG_ID:
+        client_kwargs["organization"] = OPENAI_ORG_ID
+    if OPENAI_PROJECT_ID:
+        client_kwargs["project"] = OPENAI_PROJECT_ID
 
+    client = OpenAI(**client_kwargs)
 
-    print("\nHR CLI ready. Type a model choice, then ask questions.")
-    print(f'Out-of-scope reply is exactly: "{OUT_OF_SCOPE_REPLY}"')
+    print("Fetching HR sources...")
+    pages = fetch_sources()
+    chunks = build_chunks(pages)
+
+    print("Rammy HR chatbot ready\n")
+
+    conversation_history = []
 
     while True:
         try:
-            model = choose_model()
-            question = input("\nAsk a question (or blank to go back): ").strip()
+            question = input("You: ").strip()
+
             if not question:
                 continue
 
-            if model == "__BENCH__":
-                benchmark(client, question)
+            if question.lower() == "/refresh":
+                print("Refreshing sources...")
+                pages = fetch_sources()
+                chunks = build_chunks(pages)
+                print("Updated\n")
                 continue
 
-            answer, stats = ask_model(client, model, question)
-            print("\n--- Answer ---")
-            print(answer if answer else OUT_OF_SCOPE_REPLY)
-            print_stats(stats)
+            answer, stats = ask_model(client, question, chunks, conversation_history)
+
+            print("\nRammy:", answer)
+
+            if answer != PII_WARNING_REPLY:
+                conversation_history.append({"role": "user", "content": question})
+                conversation_history.append({"role": "assistant", "content": answer})
+
+                if len(conversation_history) > 8:
+                    conversation_history = conversation_history[-8:]
+
+            print(
+                f"\nLatency {stats.latency:.2f}s | CPU {stats.cpu_max:.1f}% | RAM {stats.ram_max:.1f}MB\n"
+            )
 
         except KeyboardInterrupt:
-            print("\nExiting.")
-            break
-        except SystemExit:
-            print("\nBye.")
+            print("\nSession ended")
             break
 
 
