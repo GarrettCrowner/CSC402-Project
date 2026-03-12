@@ -1,5 +1,10 @@
 # Rammy — Local Startup Guide
 Start with Git clone
+```bash
+git clone -b Garrett_Crowner https://github.com/GarrettCrowner/CSC402-Project.git
+cd CSC402-Project
+```
+
 ## First Time Setup (Do this once)
 ### 1. Install Python dependencies
 ```bash
