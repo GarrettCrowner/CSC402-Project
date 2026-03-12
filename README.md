@@ -3,7 +3,7 @@ Start with Git clone
 ## First Time Setup (Do this once)
 ### 1. Install Python dependencies
 ```bash
-cd ~/personal402
+cd ~/CSC402-Project
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -11,13 +11,13 @@ pip install -r requirements.txt
 
 ### 2. Install Node.js dependencies
 ```bash
-cd ~/personal402
+cd ~/CSC402-Project
 npm install
 ```
 
 ### 3. Create your .env file and add your API key
 ```bash
-cd ~/personal402
+cd ~/CSC402-Project
 echo 'OPENAI_API_KEY=sk-your-actual-key-here
 OPENAI_ORG_ID=
 OPENAI_PROJECT_ID=' > .env
@@ -36,7 +36,7 @@ open .env
 
 ### Tab 1 — Python Backend
 ```bash
-cd ~/personal402
+cd ~/CSC402-Project
 source venv/bin/activate
 python chatbot_api.py
 ```
@@ -46,7 +46,7 @@ Wait until you see `Running on http://127.0.0.1:5000` before moving to Tab 2.
 
 ### Tab 2 — Node.js Server
 ```bash
-cd ~/personal402
+cd ~/CSC402-Project
 npm start
 ```
 Wait until you see `Rammy Node.js API running on http://localhost:3000` before opening the frontend.
@@ -55,7 +55,7 @@ Wait until you see `Rammy Node.js API running on http://localhost:3000` before o
 
 ### Tab 3 — Frontend
 ```bash
-open ~/personal402/index.html
+open ~/CSC402-Project/index.html
 ```
 Or right-click `index.html` in VS Code → **Open with Live Server**
 
