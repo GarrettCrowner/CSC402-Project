@@ -20,9 +20,6 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
-load_dotenv()
-
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
@@ -37,12 +34,26 @@ OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 MODEL = "gpt-4.1-mini"
 
 ALLOWED_URLS = [
+    # ── Original sources ──────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/faqs.aspx",
     "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
     "https://www.passhe.edu/hr/benefits/life-events/index.html",
     "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
     "https://www.wcupa.edu/hr/FMLA.aspx",
     "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
+    # ── Benefits ──────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
+    "https://www.passhe.edu/hr/benefits/retirement/index.html",
+    "https://www.passhe.edu/hr/benefits/retirement/arp.html",
+    # ── Payroll ───────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
+    # ── Parking ───────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/dps/parkingservices/parkingPermits.aspx",
+    "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
+    "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
+    # ── Employment & Onboarding ───────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/employment/default.aspx",
+    "https://www.wcupa.edu/hr/student-employment.aspx",
 ]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
@@ -51,6 +62,13 @@ PII_WARNING_REPLY = (
     "For your privacy, please do not include personal information in chat. "
     "Please remove names, addresses, emails, phone numbers, ID numbers, or any "
     "government or banking information, then ask again."
+)
+
+META_REPLY = (
+    "I'm designed to answer HR-related questions for West Chester University employees. "
+    "I can help with topics like benefits, retirement plans, payroll, parking permits, "
+    "FMLA, employee relations, I-9 documentation, and the Employee Self-Service portal. "
+    "If your question falls outside these areas, I may not have the information available."
 )
 
 IDENTITY_REPLY = (
@@ -63,15 +81,31 @@ IDENTITY_REPLY = (
 _GREETING_RE    = re.compile(r"^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b", re.IGNORECASE)
 _HOW_ARE_YOU_RE = re.compile(r"^\s*(how\s+are\s+you|hru|how's\s+it\s+going)\b", re.IGNORECASE)
 _GOODBYE_RE     = re.compile(r"^\s*(bye|goodbye|see\s+ya|later|take\s+care)\b", re.IGNORECASE)
-_WHO_ARE_YOU_RE = re.compile(r"^\s*(who are you|what are you|who is rammy|what is rammy)\??\s*$", re.IGNORECASE)
+_WHO_ARE_YOU_RE = re.compile(
+    r"^\s*(who are you|what are you|who is rammy|what is rammy"
+    r"|what model are you|what ai are you|are you (an? )?ai"
+    r"|what (version|type) (of )?(ai|model|bot|assistant) are you"
+    r"|who made you|who built you|what (powers|drives) you)\??\s*$",
+    re.IGNORECASE,
+)
+_META_RE = re.compile(
+    r"(why (can.?t|won.?t|don.?t) you (answer|help)|"
+    r"why (is that|are you) out of scope|"
+    r"what (can|do) you (answer|help with|know)|"
+    r"what (are your|are the) limit|"
+    r"what (topics|questions) (do you|can you)|"
+    r"why did you say that|what do you mean)",
+    re.IGNORECASE,
+)
 
 
 def small_talk_kind(text: str) -> Optional[str]:
     t = text.strip()
-    if _GREETING_RE.search(t):   return "greeting"
+    if _GREETING_RE.search(t):    return "greeting"
     if _HOW_ARE_YOU_RE.search(t): return "how_are_you"
-    if _GOODBYE_RE.search(t):    return "goodbye"
+    if _GOODBYE_RE.search(t):     return "goodbye"
     if _WHO_ARE_YOU_RE.search(t): return "identity"
+    if _META_RE.search(t):        return "meta"
     return None
 
 
@@ -172,18 +206,55 @@ def build_chunks(pages: Dict[str, str]) -> List[Dict[str, str]]:
 
 # ── Extend this table to boost new topic keywords without touching scoring logic ──
 PHRASE_BOOSTS: List[Tuple[str, float]] = [
-    ("update address",     4.0),
-    ("address",            2.0),
-    ("email",              2.0),
+    # Address / ESS
+    ("update address",        4.0),
+    ("address",               2.0),
+    ("email",                 2.0),
     ("employee self service", 3.0),
-    ("ess",                3.0),
-    ("forgiveness form",   3.0),
-    ("loan forgiveness",   3.0),
-    ("employee group",     3.0),
-    ("fmla",               3.0),
-    ("i-9",                3.0),
-    ("retirement",         2.5),
-    ("benefits",           2.0),
+    ("ess",                   3.0),
+    ("fiori",                 3.0),
+    # Loans / forgiveness
+    ("forgiveness form",      3.0),
+    ("loan forgiveness",      3.0),
+    # Employee groups / relations
+    ("employee group",        3.0),
+    # Leave
+    ("fmla",                  3.0),
+    ("time off",              2.5),
+    ("leave",                 2.0),
+    ("sick leave",            2.5),
+    # Retirement
+    ("retirement",            3.0),
+    ("401k",                  3.5),
+    ("403b",                  3.5),
+    ("457",                   3.0),
+    ("arp",                   3.0),
+    ("sers",                  3.0),
+    ("voluntary retirement",  3.5),
+    ("deferred compensation", 3.0),
+    ("fidelity",              2.5),
+    ("tiaa",                  2.5),
+    # Parking
+    ("parking",               3.0),
+    ("parking permit",        4.0),
+    ("parking pass",          4.0),
+    ("garage pass",           3.5),
+    ("e permit",              3.5),
+    # Payroll
+    ("payroll",               3.0),
+    ("direct deposit",        3.5),
+    ("pay statement",         3.0),
+    ("w-4",                   3.0),
+    # Benefits
+    ("benefits",              2.0),
+    ("health insurance",      2.5),
+    ("dental",                2.0),
+    ("vision",                2.0),
+    # I-9
+    ("i-9",                   3.0),
+    # Onboarding
+    ("new hire",              2.5),
+    ("onboarding",            2.5),
 ]
 
 _QUERY_REPLACEMENTS = [
@@ -192,6 +263,8 @@ _QUERY_REPLACEMENTS = [
     (r"\bedit\b",          "update"),
     (r"\bemail address\b", "email"),
     (r"\bhome address\b",  "address"),
+    (r"\b401k\b",          "retirement voluntary"),
+    (r"\bparking pass\b",  "parking permit"),
     (r"\bam i able to\b",  ""),
     (r"\bcan i\b",         ""),
     (r"\bhow do i\b",      ""),
@@ -303,6 +376,9 @@ def ask_model(
     if kind == "identity":
         return IDENTITY_REPLY
 
+    if kind == "meta":
+        return META_REPLY
+
     if kind:
         system_prompt = build_smalltalk_prompt(question)
         messages = [
@@ -403,4 +479,4 @@ if __name__ == "__main__":
     _client = _init_client()
     _load_sources()                     # Warm cache on startup
 
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    app.run(host="127.0.0.1", port=5000, debug=False)
