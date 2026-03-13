@@ -211,5 +211,24 @@ input {
     font-family: sans-serif;
     text-transform: uppercase;
 }
+/* Hyperlinks */
+.agent-bubble {
+    background: var(--gray-200);
+    border-radius: 1rem;
+    padding: 1rem;
+    max-width: 85%;
+    align-self: flex-start;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+.user-bubble {
+    background: var(--gray-200);
+    border-radius: 1rem;
+    padding: 1rem;
+    max-width: 85%;
+    align-self: flex-end;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
 
 
