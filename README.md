@@ -82,6 +82,7 @@ docker-compose down
 Once the containers are running, open a new terminal tab and run:
 
 ```bash
+cd ~/CSC402-project
 open index.html
 ```
 
