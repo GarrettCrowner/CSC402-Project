@@ -197,8 +197,8 @@ input {
 /* Layout for the wrapper */
 .user-msg-wrapper, .agent-msg-wrapper {
     display: flex;
-    flex-direction: column; /* Stack bubble on top of name */
-    margin-top: -1rem; /* Removes the wrapper gap in thread */
+    flex-direction: column;
+    margin-top: 0.5rem;
 }
 /* Align user messages to the right */
 .user-msg-wrapper {
