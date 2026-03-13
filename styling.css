@@ -81,7 +81,7 @@ button {
 }
 
 button:hover {
-  background-color: #9ca3af;
+  background-color: #d1d5db90;
 }
 
 input {
@@ -97,6 +97,10 @@ input {
   font-size: x-large;
   background-color: var(--purple);
 }
+#send-btn:hover {
+  background-color: var(--gray-400);
+}
+
 #chat-close-btn {
   justify-self: start;
 }
