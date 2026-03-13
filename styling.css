@@ -198,7 +198,7 @@ input {
 .user-msg-wrapper, .agent-msg-wrapper {
     display: flex;
     flex-direction: column;
-    margin-top: 0.5rem;
+    margin-top: 0rem;
 }
 /* Align user messages to the right */
 .user-msg-wrapper {
