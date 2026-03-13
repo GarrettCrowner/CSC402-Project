@@ -34,13 +34,17 @@ OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 MODEL = "gpt-4.1-mini"
 
 ALLOWED_URLS = [
-    # ── Original sources ──────────────────────────────────────────────────────
+    # ── Core HR ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/faqs.aspx",
-    "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
-    "https://www.passhe.edu/hr/benefits/life-events/index.html",
-    "https://www.wcupa.edu/hr/FMLA.aspx",
     "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
-    # ── Retirement (richer subpages) ──────────────────────────────────────────
+    "https://www.wcupa.edu/hr/student-employment.aspx",
+    "https://www.wcupa.edu/hr/professional-development.aspx",
+    # ── I-9 / Employment Verification ─────────────────────────────────────────
+    "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
+    # ── Leave ─────────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/FMLA.aspx",
+    "https://www.passhe.edu/hr/benefits/life-events/index.html",
+    # ── Retirement ────────────────────────────────────────────────────────────
     "https://www.passhe.edu/hr/benefits/retirement/index.html",
     "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
     "https://www.passhe.edu/hr/benefits/retirement/tsa.html",
@@ -49,14 +53,21 @@ ALLOWED_URLS = [
     "https://www.passhe.edu/hr/benefits/retirement/sers.html",
     # ── Benefits ──────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
+    # ── Workers Comp ──────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/work-related-injuries.aspx",
+    "https://www.wcupa.edu/hr/benefits/workersCompAPSCUF.aspx",
+    "https://www.wcupa.edu/hr/benefits/workersCompAFSCME.aspx",
+    # ── Tuition ───────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/tuition-waiver.aspx",
+    "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
     # ── Payroll ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
     # ── Parking ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/dps/parkingservices/parkingPermits.aspx",
     "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
     "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
-    # ── Employment & Onboarding ───────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/student-employment.aspx",
+    # ── Holidays / Calendar ───────────────────────────────────────────────────
+    "https://www.wcupa.edu/registrar/calendar/",
 ]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
@@ -237,6 +248,7 @@ PHRASE_BOOSTS: List[Tuple[str, float]] = [
     ("deferred compensation", 3.0),
     ("fidelity",              2.5),
     ("tiaa",                  2.5),
+    ("tsa",                   2.5),
     # Parking
     ("parking",               3.0),
     ("parking permit",        4.0),
@@ -248,11 +260,32 @@ PHRASE_BOOSTS: List[Tuple[str, float]] = [
     ("direct deposit",        3.5),
     ("pay statement",         3.0),
     ("w-4",                   3.0),
+    ("w-2",                   3.0),
     # Benefits
     ("benefits",              2.0),
     ("health insurance",      2.5),
     ("dental",                2.0),
     ("vision",                2.0),
+    # Workers comp
+    ("workers comp",          4.0),
+    ("workers compensation",  4.0),
+    ("workplace injury",      4.0),
+    ("work injury",           4.0),
+    ("incident report",       3.5),
+    ("panel physician",       3.5),
+    # Tuition
+    ("tuition waiver",        4.0),
+    ("tuition reimbursement", 4.0),
+    ("tuition benefit",       3.5),
+    ("tuition",               2.5),
+    # Holidays / calendar
+    ("holiday",               3.0),
+    ("campus closure",        3.5),
+    ("academic calendar",     3.0),
+    # Professional development
+    ("professional development", 3.0),
+    ("linkedin learning",     3.0),
+    ("training",              2.0),
     # I-9
     ("i-9",                   3.0),
     # Onboarding
@@ -261,20 +294,27 @@ PHRASE_BOOSTS: List[Tuple[str, float]] = [
 ]
 
 _QUERY_REPLACEMENTS = [
-    (r"\bchange\b",        "update"),
-    (r"\bmodify\b",        "update"),
-    (r"\bedit\b",          "update"),
-    (r"\bemail address\b", "email"),
-    (r"\bhome address\b",  "address"),
-    (r"\b401k\b",          "retirement voluntary"),
-    (r"\bparking pass\b",  "parking permit"),
-    (r"\bam i able to\b",  ""),
-    (r"\bcan i\b",         ""),
-    (r"\bhow do i\b",      ""),
-    (r"\bhow can i\b",     ""),
-    (r"\bwhere do i\b",    ""),
-    (r"\bwhat is\b",       ""),
-    (r"\bplease\b",        ""),
+    (r"\bchange\b",            "update"),
+    (r"\bmodify\b",            "update"),
+    (r"\bedit\b",              "update"),
+    (r"\bemail address\b",     "email"),
+    (r"\bhome address\b",      "address"),
+    (r"\b401k\b",              "retirement voluntary"),
+    (r"\bparking pass\b",      "parking permit"),
+    (r"\bhurt at work\b",      "workers compensation injury"),
+    (r"\binjured at work\b",   "workers compensation injury"),
+    (r"\bwork injury\b",       "workers compensation"),
+    (r"\btuition help\b",      "tuition waiver reimbursement"),
+    (r"\btake classes\b",      "tuition waiver"),
+    (r"\bday off\b",           "holiday campus closure"),
+    (r"\bdays off\b",          "holiday campus closure"),
+    (r"\bam i able to\b",      ""),
+    (r"\bcan i\b",             ""),
+    (r"\bhow do i\b",          ""),
+    (r"\bhow can i\b",         ""),
+    (r"\bwhere do i\b",        ""),
+    (r"\bwhat is\b",           ""),
+    (r"\bplease\b",            ""),
 ]
 
 # Pre-compile for speed
@@ -349,6 +389,24 @@ Context:
 """.strip()
 
 
+def build_out_of_scope_prompt(question: str) -> str:
+    return f"""
+You are Rammy, the West Chester University mascot — friendly, casual, and upbeat.
+
+The user asked: "{question}"
+
+This question is outside your knowledge base. You can only help with WCU HR topics:
+benefits, retirement plans (403b, 457, ARP, SERS), payroll, parking permits,
+FMLA and leave, workers compensation, tuition waiver, I-9 documentation,
+employee relations, professional development, and the Employee Self-Service portal.
+
+Write a short, friendly 1-2 sentence decline in Rammy's voice. Be warm and helpful —
+suggest they contact HR directly at HRS@wcupa.edu or 610-436-2800 if it seems relevant.
+Do not use bullet points or markdown. Never say "I cannot answer that question" verbatim.
+Vary your response naturally — don't use the same phrasing every time.
+""".strip()
+
+
 def build_smalltalk_prompt(user_text: str) -> str:
     return f"""
 You are Rammy, the West Chester University mascot.
@@ -391,7 +449,15 @@ def ask_model(
     else:
         context = build_context(question, chunks)
         if not context:
-            return OUT_OF_SCOPE_REPLY
+            # Generate a friendly, varied decline via GPT
+            oos_prompt = build_out_of_scope_prompt(question)
+            oos_response = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": oos_prompt}],
+                max_tokens=100,
+                temperature=0.8,  # Higher temp for natural variation
+            )
+            return oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY
 
         system_prompt = build_hr_instructions(context)
         trimmed_history = history[-4:] if history else []
