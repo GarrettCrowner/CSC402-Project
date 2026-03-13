@@ -63,26 +63,35 @@ window.addEventListener("load", () => {
 function createBubbleLauncher() {
     const bubble = document.createElement("div");
     bubble.id = "rammy-bubble";
-    bubble.innerHTML = `<span style="font-size:1.4rem;">💬</span>`;
+    bubble.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" style="flex-shrink:0;">
+            <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H6l-2 2V4h16v10z"/>
+        </svg>
+        <span style="font-family:'Quicksand',sans-serif;font-weight:700;font-size:0.85rem;letter-spacing:0.05em;color:white;">QUESTIONS? ASK RAMMY</span>
+    `;
     bubble.style.cssText = `
         position: fixed;
         bottom: 24px;
         right: 24px;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background-color: #6E3061;
-        color: #FFAE2E;
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 10px;
+        background-color: #6E3061;
+        padding: 14px 22px;
+        border-radius: 50px;
         cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         z-index: 1000;
-        transition: transform 0.2s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     `;
-    bubble.addEventListener("mouseenter", () => bubble.style.transform = "scale(1.1)");
-    bubble.addEventListener("mouseleave", () => bubble.style.transform = "scale(1)");
+    bubble.addEventListener("mouseenter", () => {
+        bubble.style.transform = "scale(1.04)";
+        bubble.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
+    });
+    bubble.addEventListener("mouseleave", () => {
+        bubble.style.transform = "scale(1)";
+        bubble.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+    });
     bubble.addEventListener("click", restoreChat);
     document.body.appendChild(bubble);
 }
