@@ -49,7 +49,7 @@ function displayMessage(role, text) {
         newBubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
     } else {
         newBubble.className = (role === "You") ? "user-bubble" : "agent-bubble";
-        newBubble.innerHTML = `<p>${escapeHtml(text)}</p>`;
+        newBubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
     }
 
     messageWrapper.appendChild(newBubble);
@@ -73,7 +73,7 @@ function replaceLoadingBubble(text) {
     const parent = loader.parentElement;
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p>${escapeHtml(text)}</p>`;
+    loader.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
 
     const nameTag = document.createElement("span");
     nameTag.className = "profile-name";
@@ -83,13 +83,32 @@ function replaceLoadingBubble(text) {
     chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-/** Minimal HTML escape to prevent XSS from API responses */
-function escapeHtml(str) {
-    return String(str)
+/**
+ * Sanitizes text from the API for safe HTML rendering.
+ * Allows only <a> tags with href and target attributes.
+ * All other HTML is escaped to prevent XSS.
+ */
+function sanitizeHtml(str) {
+    // First extract any valid <a> tags and protect them
+    const anchors = [];
+    const protected_str = String(str).replace(
+        /<a\s+href="(https?:\/\/[^"]+)"\s*[^>]*>(.*?)<\/a>/gi,
+        (match, href, text) => {
+            const safe = `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`;
+            anchors.push(safe);
+            return `\x00ANCHOR${anchors.length - 1}\x00`;
+        }
+    );
+
+    // Escape everything else
+    const escaped = protected_str
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+
+    // Restore safe anchors
+    return escaped.replace(/\x00ANCHOR(\d+)\x00/g, (_, i) => anchors[parseInt(i)]);
 }
 
 function setInputEnabled(enabled) {
