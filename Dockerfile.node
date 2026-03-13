@@ -1,0 +1,20 @@
+# ── Node.js Express Server ────────────────────────────────────────────────────
+# Uses a slim Node.js 20 LTS base.
+
+FROM node:20-slim
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy and install dependencies first (leverages Docker layer caching)
+COPY package*.json .
+RUN npm install --omit=dev
+
+# Copy the rest of the application code
+COPY server.js .
+
+# Expose the port Express runs on
+EXPOSE 3000
+
+# Start the Node server
+CMD ["node", "server.js"]
