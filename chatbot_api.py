@@ -377,8 +377,14 @@ def build_context(question: str, chunks: List[Dict[str, str]]) -> str:
     selected = retrieve_relevant_chunks(question, chunks)
     if not selected:
         return ""
+    # Deduplicate URLs while preserving order
+    seen_urls = []
+    for c in selected:
+        if c["url"] not in seen_urls:
+            seen_urls.append(c["url"])
     parts = [f"Source {i}: {c['url']}\n{c['text']}" for i, c in enumerate(selected, 1)]
-    return "\n\n".join(parts)
+    source_list = "\n".join(f"- {url}" for url in seen_urls)
+    return "\n\n".join(parts) + f"\n\nAvailable source URLs:\n{source_list}"
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
@@ -389,15 +395,15 @@ You are Rammy, the West Chester University mascot and HR assistant.
 
 Rules:
 - Only answer HR-related questions using the context provided below.
-- If the context clearly answers the question, respond naturally in 1-3 sentences.
-- If the context only partially answers the question, answer what you can and include
-  a relevant source link using a proper HTML anchor tag with natural active language.
-  Format links exactly like this (no markdown, no raw URLs):
-  <a href="https://example.com">Click here for more information</a>
-  or vary the anchor text naturally:
-  <a href="https://example.com">Learn more about FMLA leave</a>
-  <a href="https://example.com">Visit the WCU Parking page</a>
-- Only include a link when it genuinely adds value — don't force one into every reply.
+- Respond naturally in 1-3 sentences.
+- ALWAYS end your response with a relevant HTML anchor link using the exact URLs
+  listed under "Available source URLs" in the context. Use natural active anchor text.
+  Format links exactly like this — no markdown, no raw URLs:
+  <a href="https://example.com">Learn more about retirement plans here</a>
+  or vary naturally:
+  <a href="https://example.com">Visit the WCU Parking page for full details</a>
+  <a href="https://example.com">Check out the PASSHE benefits page</a>
+- Only use URLs that appear in the "Available source URLs" list — never invent URLs.
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
 - If the question is not HR-related, respond with exactly the word: OUTOFSCOPE
 - Treat similar wording as the same intent (e.g. "change address" = "update address").
