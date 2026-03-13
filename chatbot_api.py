@@ -294,27 +294,38 @@ PHRASE_BOOSTS: List[Tuple[str, float]] = [
 ]
 
 _QUERY_REPLACEMENTS = [
-    (r"\bchange\b",            "update"),
-    (r"\bmodify\b",            "update"),
-    (r"\bedit\b",              "update"),
-    (r"\bemail address\b",     "email"),
-    (r"\bhome address\b",      "address"),
-    (r"\b401k\b",              "retirement voluntary"),
-    (r"\bparking pass\b",      "parking permit"),
-    (r"\bhurt at work\b",      "workers compensation injury"),
-    (r"\binjured at work\b",   "workers compensation injury"),
-    (r"\bwork injury\b",       "workers compensation"),
-    (r"\btuition help\b",      "tuition waiver reimbursement"),
-    (r"\btake classes\b",      "tuition waiver"),
-    (r"\bday off\b",           "holiday campus closure"),
-    (r"\bdays off\b",          "holiday campus closure"),
-    (r"\bam i able to\b",      ""),
-    (r"\bcan i\b",             ""),
-    (r"\bhow do i\b",          ""),
-    (r"\bhow can i\b",         ""),
-    (r"\bwhere do i\b",        ""),
-    (r"\bwhat is\b",           ""),
-    (r"\bplease\b",            ""),
+    (r"\bchange\b",              "update"),
+    (r"\bmodify\b",              "update"),
+    (r"\bedit\b",                "update"),
+    (r"\bemail address\b",       "email"),
+    (r"\bhome address\b",        "address"),
+    (r"\b401k\b",                "retirement voluntary"),
+    (r"\bparking pass\b",        "parking permit"),
+    (r"\bhurt at work\b",        "workers compensation injury"),
+    (r"\binjured at work\b",     "workers compensation injury"),
+    (r"\bwork injury\b",         "workers compensation"),
+    (r"\bworkplace accident\b",  "workers compensation injury"),
+    (r"\baccident at work\b",    "workers compensation injury"),
+    (r"\breport an? injury\b",   "workers compensation"),
+    (r"\btuition help\b",        "tuition waiver reimbursement"),
+    (r"\btake classes\b",        "tuition waiver"),
+    (r"\bgo back to school\b",   "tuition waiver"),
+    (r"\bday off\b",             "holiday campus closure"),
+    (r"\bdays off\b",            "holiday campus closure"),
+    (r"\bschool closed\b",       "campus closure holiday"),
+    (r"\bsick\b",                "sick leave fmla"),
+    (r"\bvacation\b",            "leave time off"),
+    (r"\bpay stub\b",            "pay statement payroll"),
+    (r"\bpaycheck\b",            "payroll pay statement"),
+    (r"\bhealth (insurance|care|plan|coverage)\b", "benefits health insurance"),
+    (r"\bdoctor\b",              "health insurance benefits"),
+    (r"\bam i able to\b",        ""),
+    (r"\bcan i\b",               ""),
+    (r"\bhow do i\b",            ""),
+    (r"\bhow can i\b",           ""),
+    (r"\bwhere do i\b",          ""),
+    (r"\bwhat is\b",             ""),
+    (r"\bplease\b",              ""),
 ]
 
 # Pre-compile for speed
@@ -355,7 +366,9 @@ def retrieve_relevant_chunks(
     question: str, chunks: List[Dict[str, str]], top_k: int = 5
 ) -> List[Dict[str, str]]:
     scored = [(score_chunk(question, c["text"]), c) for c in chunks]
-    scored = [(s, c) for s, c in scored if s > 0]
+    # Lower threshold from >0 to >=1.5 to filter noise,
+    # but keep anything with a phrase boost hit (those are always >= 2.0)
+    scored = [(s, c) for s, c in scored if s >= 1.5]
     scored.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in scored[:top_k]]
 
@@ -375,14 +388,19 @@ def build_hr_instructions(context: str) -> str:
 You are Rammy, the West Chester University mascot and HR assistant.
 
 Rules:
-- Only answer HR-related questions.
-- Use ONLY the context provided below.
-- If the answer is not in the context, reply exactly: {OUT_OF_SCOPE_REPLY}
-- If the question is not HR-related, reply exactly: {OUT_OF_SCOPE_REPLY}
+- Only answer HR-related questions using the context provided below.
+- If the context clearly answers the question, respond naturally in 1-3 sentences.
+- If the context only partially answers the question, answer what you can and include
+  a relevant source link using natural active language — for example:
+  "You can find the full details at [WCU Parking Permits](https://www.wcupa.edu/...)" or
+  "Learn more here: [PASSHE Retirement Plans](https://www.passhe.edu/...)".
+- Only include a link when it genuinely adds value — don't force one into every reply.
+- If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
+- If the question is not HR-related, respond with exactly the word: OUTOFSCOPE
 - Treat similar wording as the same intent (e.g. "change address" = "update address").
-- If the context answers the question, respond naturally in 1-3 sentences.
-- Do not mention the context or sources.
-- Do not use markdown or bullet points.
+- Do not mention the context or sources by name.
+- Do not use markdown headers or bullet points.
+- Do not make up information not found in the context.
 
 Context:
 {context}
@@ -476,7 +494,19 @@ def ask_model(
     )
 
     answer = response.choices[0].message.content.strip()
-    return answer or OUT_OF_SCOPE_REPLY
+
+    # If GPT returned the out-of-scope sentinel, generate a friendly decline
+    if not answer or "OUTOFSCOPE" in answer:
+        oos_prompt = build_out_of_scope_prompt(question)
+        oos_response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": oos_prompt}],
+            max_tokens=100,
+            temperature=0.8,
+        )
+        return oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY
+
+    return answer
 
 
 # ─── Flask App ────────────────────────────────────────────────────────────────
