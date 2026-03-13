@@ -1,5 +1,0 @@
-The full Rammy HR Chatbot stack:
-
-Python Flask — AI backend with PII detection, HR knowledge retrieval, and GPT-4.1-mini
-Node.js Express — REST API layer with rate limiting, CORS, and input validation
-Vanilla JS frontend — Fully wired chat UI with typing indicators and conversation memory
