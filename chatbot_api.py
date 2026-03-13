@@ -38,13 +38,17 @@ ALLOWED_URLS = [
     "https://www.wcupa.edu/hr/faqs.aspx",
     "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
     "https://www.passhe.edu/hr/benefits/life-events/index.html",
-    "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
     "https://www.wcupa.edu/hr/FMLA.aspx",
     "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
+    # ── Retirement (richer subpages) ──────────────────────────────────────────
+    "https://www.passhe.edu/hr/benefits/retirement/index.html",
+    "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
+    "https://www.passhe.edu/hr/benefits/retirement/tsa.html",
+    "https://www.passhe.edu/hr/benefits/retirement/deferred-compensation.html",
+    "https://www.passhe.edu/hr/benefits/retirement/arp.html",
+    "https://www.passhe.edu/hr/benefits/retirement/sers.html",
     # ── Benefits ──────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
-    "https://www.passhe.edu/hr/benefits/retirement/index.html",
-    "https://www.passhe.edu/hr/benefits/retirement/arp.html",
     # ── Payroll ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
     # ── Parking ───────────────────────────────────────────────────────────────
@@ -52,7 +56,6 @@ ALLOWED_URLS = [
     "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
     "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
     # ── Employment & Onboarding ───────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/employment/default.aspx",
     "https://www.wcupa.edu/hr/student-employment.aspx",
 ]
 
