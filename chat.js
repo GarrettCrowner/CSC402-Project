@@ -1,13 +1,20 @@
 /*
- * Rammy HR Chatbot — chat.js
+ * Rammy HR Chatbot — chat.js (Embedded Version)
  *
- * Features:
- *   - Real API calls to Node.js REST server
- *   - Conversation history (last 8 turns)
- *   - Message timestamps
- *   - Live status dot (green/red) showing backend connectivity
- *   - Close button — minimizes chat to floating bubble
- *   - Options dropdown — Clear conversation, Refresh sources, Contact HR
+ * Designed to be dropped into any WCU page alongside styling_Rev1.css.
+ * The host page provides:
+ *   - #chat-btn         — the "Questions? Ask Rammy" pill button
+ *   - #chat-container   — the chat window (starts display:none in CSS)
+ *   - #chat-header      — header bar
+ *   - #chat-close-btn   — X button
+ *   - #chat-options-btn — options button
+ *   - #message-container — scrollable message area
+ *   - #chat-user-form   — wraps input + send button
+ *   - #chat-user-input  — text input
+ *   - #send-btn         — submit button
+ *   - #status-dot       — connectivity indicator (optional)
+ *
+ * restoreChat() is exposed globally so the host HTML can call it via onclick.
  */
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -23,6 +30,7 @@ const chatForm      = document.getElementById("chat-user-form");
 const chatContainer = document.getElementById("chat-container");
 const closeBtn      = document.getElementById("chat-close-btn");
 const optionsBtn    = document.getElementById("chat-options-btn");
+const chatBtn       = document.getElementById("chat-btn");
 
 // ─── Conversation History ─────────────────────────────────────────────────────
 
@@ -60,55 +68,19 @@ window.addEventListener("load", () => {
 
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
-function createBubbleLauncher() {
-    const bubble = document.createElement("div");
-    bubble.id = "rammy-bubble";
-    bubble.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" style="flex-shrink:0;">
-            <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H6l-2 2V4h16v10z"/>
-        </svg>
-        <span style="font-family:'Quicksand',sans-serif;font-weight:700;font-size:0.85rem;letter-spacing:0.05em;color:white;">QUESTIONS? ASK RAMMY</span>
-    `;
-    bubble.style.cssText = `
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        background-color: #6E3061;
-        padding: 14px 22px;
-        border-radius: 50px;
-        cursor: pointer;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-        z-index: 1000;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    `;
-    bubble.addEventListener("mouseenter", () => {
-        bubble.style.transform = "scale(1.04)";
-        bubble.style.boxShadow = "0 6px 20px rgba(0,0,0,0.3)";
-    });
-    bubble.addEventListener("mouseleave", () => {
-        bubble.style.transform = "scale(1)";
-        bubble.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
-    });
-    bubble.addEventListener("click", restoreChat);
-    document.body.appendChild(bubble);
-}
-
 function minimizeChat() {
     chatContainer.style.display = "none";
-    createBubbleLauncher();
+    if (chatBtn) chatBtn.style.display = "flex";
 }
 
-function restoreChat() {
+// Exposed globally so host HTML onclick="restoreChat()" works
+window.restoreChat = function() {
     chatContainer.style.display = "flex";
-    const bubble = document.getElementById("rammy-bubble");
-    if (bubble) bubble.remove();
+    if (chatBtn) chatBtn.style.display = "none";
     inputField.focus();
-}
+};
 
-closeBtn.addEventListener("click", minimizeChat);
+if (closeBtn) closeBtn.addEventListener("click", minimizeChat);
 
 // ─── Options Dropdown ─────────────────────────────────────────────────────────
 
@@ -126,9 +98,9 @@ function createDropdown() {
         border-radius: 0.75rem;
         box-shadow: 0 8px 24px rgba(0,0,0,0.15);
         overflow: hidden;
-        z-index: 100;
+        z-index: 9999;
         min-width: 200px;
-        font-family: 'Nunito', sans-serif;
+        font-family: 'Quicksand', sans-serif;
     `;
 
     const items = [
@@ -199,10 +171,12 @@ function contactHR() {
     displayMessage("Agent", `You can reach WCU HR directly at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or by phone at <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
 }
 
-optionsBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    createDropdown();
-});
+if (optionsBtn) {
+    optionsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        createDropdown();
+    });
+}
 
 // ─── Timestamps ───────────────────────────────────────────────────────────────
 
@@ -250,7 +224,7 @@ function displayMessage(role, text) {
 
         const timestamp = document.createElement("span");
         timestamp.textContent = getTimestamp();
-        timestamp.style.cssText = `font-size: 0.65rem; color: #9ca3af; font-family: sans-serif;`;
+        timestamp.style.cssText = `font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;letter-spacing:0.02em;`;
 
         metaRow.appendChild(nameTag);
         metaRow.appendChild(timestamp);
@@ -279,7 +253,7 @@ function replaceLoadingBubble(text) {
 
     const timestamp = document.createElement("span");
     timestamp.textContent = getTimestamp();
-    timestamp.style.cssText = `font-size:0.65rem;color:#9ca3af;font-family:sans-serif;`;
+    timestamp.style.cssText = `font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;letter-spacing:0.02em;`;
 
     metaRow.appendChild(nameTag);
     metaRow.appendChild(timestamp);
@@ -292,24 +266,19 @@ function sanitizeHtml(str) {
     const anchors = [];
     let s = String(str);
 
-    // Protect https links
     s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"\s*[^>]*>(.*?)<\/a>/gi,
         (match, href, text) => {
             anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`);
             return `\x00ANCHOR${anchors.length - 1}\x00`;
         });
 
-    // Protect mailto and tel links
     s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"\s*[^>]*>(.*?)<\/a>/gi,
         (match, href, text) => {
             anchors.push(`<a href="${href}" style="color:#6E3061;">${text}</a>`);
             return `\x00ANCHOR${anchors.length - 1}\x00`;
         });
 
-    // Escape everything else
     s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-    // Restore safe anchors
     return s.replace(/\x00ANCHOR(\d+)\x00/g, (_, i) => anchors[parseInt(i)]);
 }
 
