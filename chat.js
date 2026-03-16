@@ -64,11 +64,6 @@ async function checkStatus() {
     }
 }
 
-window.addEventListener("load", () => {
-    checkStatus();
-    setInterval(checkStatus, 30000);
-});
-
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
 let _chatOpen = false;
@@ -119,23 +114,50 @@ function _closeChat() {
 // Keep window.restoreChat as a no-op so any WCU JS that calls it does nothing
 window.restoreChat = function() {};
 
-// Wire buttons through private JS listeners only — no onclick in HTML
-if (chatBtn) {
-    chatBtn.removeAttribute("onclick");
-    chatBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        _openChat();
-    });
-}
+// Wire all buttons inside load event so our listeners are added AFTER
+// WCU's core.js finishes — ensuring our handlers take final precedence
+window.addEventListener("load", () => {
+    // Wire launch button
+    if (chatBtn) {
+        chatBtn.removeAttribute("onclick");
+        // Clone to strip any listeners added by WCU JS
+        const newChatBtn = chatBtn.cloneNode(true);
+        chatBtn.parentNode.replaceChild(newChatBtn, chatBtn);
+        newChatBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            _openChat();
+        });
+    }
 
-if (closeBtn) {
-    closeBtn.removeAttribute("onclick");
-    closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        _closeChat();
-    });
-}
+    // Wire close button — clone to strip WCU listeners
+    if (closeBtn) {
+        closeBtn.removeAttribute("onclick");
+        const newCloseBtn = closeBtn.cloneNode(true);
+        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+        newCloseBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            _closeChat();
+        });
+    }
+
+    // Wire options button
+    if (optionsBtn) {
+        const newOptionsBtn = optionsBtn.cloneNode(true);
+        optionsBtn.parentNode.replaceChild(newOptionsBtn, optionsBtn);
+        newOptionsBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            createDropdown();
+        });
+    }
+
+    // Status check
+    checkStatus();
+    setInterval(checkStatus, 30000);
+
+    // Pre-populate history
+    addToHistory("assistant", WELCOME_TEXT);
+});
 
 // ─── Options Dropdown ─────────────────────────────────────────────────────────
 
@@ -239,13 +261,6 @@ async function refreshSources() {
 
 function contactHR() {
     displayMessage("Agent", `You can reach WCU HR directly at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or by phone at <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
-}
-
-if (optionsBtn) {
-    optionsBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        createDropdown();
-    });
 }
 
 // ─── Timestamps ───────────────────────────────────────────────────────────────
@@ -419,11 +434,3 @@ if (chatForm) {
         }
     });
 }
-
-// ─── Startup ──────────────────────────────────────────────────────────────────
-// Welcome message is shown when chat first opens, not on page load
-// This prevents it from disappearing after close/reopen cycles
-window.addEventListener("load", () => {
-    // Pre-populate history so context is set even before first open
-    addToHistory("assistant", WELCOME_TEXT);
-});
