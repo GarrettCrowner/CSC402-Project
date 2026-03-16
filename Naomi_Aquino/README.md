@@ -7,3 +7,5 @@ Shared Google Doc: https://docs.google.com/document/d/12GmmGJd5ODKJJlmHAI-Lrncbm
 Naomi_Branch:  
 chatRev1.html + styling_Rev1.css + chat.js = Simulated prototype, No React UI  
 chatRev2.html + styling_Rev2.css + chatRev1.js = Simulated prototype, Low-level React UI  
+
+chatRev3 = Chat UI integrated to static mock site + chat.js from Garret_Crowner
