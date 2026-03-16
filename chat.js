@@ -72,11 +72,16 @@ window.addEventListener("load", () => {
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
 let _chatOpen = false;
+let _justClosed = false;
 const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 function minimizeChat() {
     if (!_chatOpen) return;
     _chatOpen = false;
+    _justClosed = true;
+    // Block any restoreChat calls for 600ms after closing
+    setTimeout(() => { _justClosed = false; }, 600);
+
     chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
     chatContainer.style.transform = "translateY(20px)";
     chatContainer.style.opacity = "0";
@@ -89,7 +94,7 @@ function minimizeChat() {
 }
 
 window.restoreChat = function() {
-    if (_chatOpen) return;
+    if (_chatOpen || _justClosed) return;
     _chatOpen = true;
 
     // Re-show welcome message if chat window is empty
