@@ -101,8 +101,15 @@
   background-color: rgba(255,255,255,0.15) !important;
 }
 
+#chat-header button ion-icon {
+  pointer-events: none !important;
+}
 #chat-close-btn  { justify-self: start !important; }
 #chat-options-btn { justify-self: end !important; }
+
+#send-btn ion-icon {
+  pointer-events: none !important;
+}
 
 /* ─── Message area ──────────────────────────────────────────── */
 #message-container {
