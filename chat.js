@@ -50,7 +50,10 @@ async function checkStatus() {
     const dot = document.getElementById("status-dot");
     if (!dot) return;
     try {
-        const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(timer);
         const data = await res.json();
         const online = data.status === "ok" && data.python === "reachable";
         dot.style.backgroundColor = online ? "#22c55e" : "#ef4444";
@@ -69,15 +72,32 @@ window.addEventListener("load", () => {
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
 function minimizeChat() {
-    chatContainer.style.display = "none";
-    if (chatBtn) chatBtn.style.display = "flex";
+    chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+    chatContainer.style.transform = "translateY(20px)";
+    chatContainer.style.opacity = "0";
+    setTimeout(() => {
+        chatContainer.style.display = "none";
+        chatContainer.style.transform = "";
+        chatContainer.style.opacity = "";
+        if (chatBtn) chatBtn.style.display = "flex";
+    }, 300);
 }
 
 // Exposed globally so host HTML onclick="restoreChat()" works
 window.restoreChat = function() {
-    chatContainer.style.display = "flex"; chatContainer.style.flexDirection = "column";
+    chatContainer.style.display = "flex";
+    chatContainer.style.flexDirection = "column";
+    chatContainer.style.transform = "translateY(20px)";
+    chatContainer.style.opacity = "0";
+    chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
     if (chatBtn) chatBtn.style.display = "none";
-    inputField.focus();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            chatContainer.style.transform = "translateY(0)";
+            chatContainer.style.opacity = "1";
+        });
+    });
+    setTimeout(() => inputField.focus(), 310);
 };
 
 if (closeBtn) closeBtn.addEventListener("click", minimizeChat);
