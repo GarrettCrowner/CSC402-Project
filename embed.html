@@ -1,0 +1,72 @@
+<!-- ============================================================
+     CHATBOT EMBED â€” drop this block into any WCU page
+     Requires: styling_Rev1.css and chat.js in the same directory
+     ============================================================ -->
+
+<!-- Chatbot head links (add to <head>) -->
+<!--
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <link rel="stylesheet" href="styling_Rev1.css">
+-->
+
+<!-- Chatbot body block (add before closing </body>) -->
+<div id="chatbot-wrapper">
+
+    <!-- Launch button â€” visible by default, hides when chat opens -->
+    <button id="chat-btn" onclick="restoreChat()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" style="flex-shrink:0;">
+            <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H6l-2 2V4h16v10z"/>
+        </svg>
+        Questions? Ask Rammy
+    </button>
+
+    <!-- Chat window â€” hidden by default, shown when button clicked -->
+    <div id="chat-container">
+
+        <!-- Header -->
+        <div id="chat-header">
+            <button id="chat-close-btn">
+                <ion-icon name="close-outline"></ion-icon>
+            </button>
+            <div style="display:flex; align-items:center; gap:0.5rem; font-size:1.15em;">
+                Ask Rammy
+                <span
+                    id="status-dot"
+                    title="Checking..."
+                    style="
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 50%;
+                        background-color: #9ca3af;
+                        display: inline-block;
+                        flex-shrink: 0;
+                        transition: background-color 0.4s ease;
+                    "
+                ></span>
+            </div>
+            <button id="chat-options-btn">
+                <ion-icon name="ellipsis-vertical-circle-outline"></ion-icon>
+            </button>
+        </div>
+
+        <!-- Message area -->
+        <div id="message-container">
+            <!-- Messages appended here by chat.js -->
+        </div>
+
+        <!-- Input area -->
+        <div id="chat-footer">
+            <form id="chat-user-form">
+                <input type="text" id="chat-user-input" placeholder="Ask a question..." required>
+                <button type="submit" id="send-btn">
+                    <ion-icon name="send"></ion-icon>
+                </button>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script src="chat.js"></script>
