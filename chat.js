@@ -71,6 +71,7 @@ let _justClosed = false;
 const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 function _openChat() {
+    console.log("[Rammy] _openChat called, _chatOpen:", _chatOpen, "_justClosed:", _justClosed);
     if (_chatOpen || _justClosed) return;
     _chatOpen = true;
 
@@ -95,6 +96,7 @@ function _openChat() {
 }
 
 function _closeChat() {
+    console.log("[Rammy] _closeChat called, _chatOpen:", _chatOpen);
     if (!_chatOpen) return;
     _chatOpen = false;
     _justClosed = true;
@@ -111,32 +113,57 @@ function _closeChat() {
     }, 300);
 }
 
-// Keep window.restoreChat as a no-op so any WCU JS that calls it does nothing
-window.restoreChat = function() {};
+// Keep window.restoreChat as a no-op
+window.restoreChat = function() {
+    console.log("[Rammy] window.restoreChat called from:", new Error().stack);
+};
+
+// Intercept _openChat to trace unexpected calls
+const _openChatOriginal = _openChat;
+window._openChatDebug = function() {
+    console.log("[Rammy] _openChat called from:", new Error().stack);
+    _openChatOriginal();
+};
 
 // Wire all buttons inside load event so our listeners are added AFTER
 // WCU's core.js finishes — ensuring our handlers take final precedence
 window.addEventListener("load", () => {
-    // Re-query all buttons fresh after WCU JS has run
-    const btn     = document.getElementById("chat-btn");
-    const closeB  = document.getElementById("chat-close-btn");
-    const optB    = document.getElementById("chat-options-btn");
+    console.log("[Rammy] load event fired");
 
-    // Clone each button to strip any WCU-attached listeners, then re-add ours
+    // Spy on ALL document clicks to see what fires after close
+    document.addEventListener("click", (e) => {
+        if (_chatOpen || _justClosed) {
+            console.log("[Rammy] document click detected, target:", e.target, "id:", e.target.id, "_chatOpen:", _chatOpen, "_justClosed:", _justClosed);
+        }
+    }, true); // capture phase — fires before any other handler
+
+    const btn    = document.getElementById("chat-btn");
+    const closeB = document.getElementById("chat-close-btn");
+    const optB   = document.getElementById("chat-options-btn");
+
+    console.log("[Rammy] chat-btn found:", btn);
+    console.log("[Rammy] chat-close-btn found:", closeB);
+    console.log("[Rammy] window.restoreChat:", window.restoreChat);
+
     if (btn) {
         btn.removeAttribute("onclick");
         const fresh = btn.cloneNode(true);
         btn.parentNode.replaceChild(fresh, btn);
-        document.getElementById("chat-btn").addEventListener("click", (e) => {
+        const wiredBtn = document.getElementById("chat-btn");
+        console.log("[Rammy] wiredBtn after clone:", wiredBtn);
+        wiredBtn.addEventListener("click", (e) => {
+            console.log("[Rammy] chat-btn clicked, _chatOpen:", _chatOpen, "_justClosed:", _justClosed);
             e.stopPropagation();
             _openChat();
         });
+        console.log("[Rammy] chat-btn listener attached");
     }
 
     if (closeB) {
         const fresh = closeB.cloneNode(true);
         closeB.parentNode.replaceChild(fresh, closeB);
         document.getElementById("chat-close-btn").addEventListener("click", (e) => {
+            console.log("[Rammy] close-btn clicked, _chatOpen:", _chatOpen);
             e.stopPropagation();
             e.preventDefault();
             _closeChat();
@@ -152,11 +179,8 @@ window.addEventListener("load", () => {
         });
     }
 
-    // Status check
     checkStatus();
     setInterval(checkStatus, 30000);
-
-    // Pre-populate history
     addToHistory("assistant", WELCOME_TEXT);
 });
 
