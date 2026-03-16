@@ -7,4 +7,4 @@ Shared Google Doc: https://docs.google.com/document/d/12GmmGJd5ODKJJlmHAI-Lrncbm
 Naomi_Branch:  
 Rev1 = Simulated prototype, No React UI  
 Rev2 = Simulated prototype, Low-level React UI  
-Rev3 = Chat UI integrated to static mock site + chat.js from Garret_Crowner
+Rev3 = Accessibility revisions, Chat UI integrated to static mock site, chat.js from Garret_Crowner
