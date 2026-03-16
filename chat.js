@@ -66,50 +66,59 @@ async function checkStatus() {
 
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
-let _chatOpen = false;
-let _justClosed = false;
 const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 function _openChat() {
-    console.log("[Rammy] _openChat called, _chatOpen:", _chatOpen, "_justClosed:", _justClosed);
-    if (_chatOpen || _justClosed) return;
-    _chatOpen = true;
+const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
-    if (chatWindow && chatWindow.children.length === 0) {
+function isChatOpen() {
+    return document.getElementById("chat-container").style.display === "flex";
+}
+
+function _openChat() {
+    console.log("[Rammy] _openChat called, isChatOpen:", isChatOpen());
+    if (isChatOpen()) return;
+
+    const container = document.getElementById("chat-container");
+    const msgArea   = document.getElementById("message-container");
+    const launchBtn = document.getElementById("chat-btn");
+    const inp       = document.getElementById("chat-user-input");
+
+    if (msgArea && msgArea.children.length === 0) {
         addToHistory("assistant", WELCOME_TEXT);
         displayMessage("Agent", WELCOME_TEXT);
     }
 
-    chatContainer.style.display = "flex";
-    chatContainer.style.flexDirection = "column";
-    chatContainer.style.transform = "translateY(20px)";
-    chatContainer.style.opacity = "0";
-    chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-    if (chatBtn) chatBtn.style.display = "none";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.transform = "translateY(20px)";
+    container.style.opacity = "0";
+    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+    if (launchBtn) launchBtn.style.display = "none";
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            chatContainer.style.transform = "translateY(0)";
-            chatContainer.style.opacity = "1";
+            container.style.transform = "translateY(0)";
+            container.style.opacity = "1";
         });
     });
-    setTimeout(() => inputField.focus(), 310);
+    setTimeout(() => { if (inp) inp.focus(); }, 310);
 }
 
 function _closeChat() {
-    console.log("[Rammy] _closeChat called, _chatOpen:", _chatOpen);
-    if (!_chatOpen) return;
-    _chatOpen = false;
-    _justClosed = true;
-    setTimeout(() => { _justClosed = false; }, 800);
+    console.log("[Rammy] _closeChat called, isChatOpen:", isChatOpen());
+    if (!isChatOpen()) return;
 
-    chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-    chatContainer.style.transform = "translateY(20px)";
-    chatContainer.style.opacity = "0";
+    const container = document.getElementById("chat-container");
+    const launchBtn = document.getElementById("chat-btn");
+
+    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+    container.style.transform = "translateY(20px)";
+    container.style.opacity = "0";
     setTimeout(() => {
-        chatContainer.style.display = "none";
-        chatContainer.style.transform = "";
-        chatContainer.style.opacity = "";
-        if (chatBtn) chatBtn.style.display = "flex";
+        container.style.display = "none";
+        container.style.transform = "";
+        container.style.opacity = "";
+        if (launchBtn) launchBtn.style.display = "flex";
     }, 300);
 }
 
@@ -132,8 +141,8 @@ window.addEventListener("load", () => {
 
     // Spy on ALL document clicks to see what fires after close
     document.addEventListener("click", (e) => {
-        if (_chatOpen || _justClosed) {
-            console.log("[Rammy] document click detected, target:", e.target, "id:", e.target.id, "_chatOpen:", _chatOpen, "_justClosed:", _justClosed);
+        if (isChatOpen()) {
+            console.log("[Rammy] document click detected, target:", e.target, "id:", e.target.id, "isChatOpen:", isChatOpen());
         }
     }, true); // capture phase — fires before any other handler
 
@@ -152,7 +161,7 @@ window.addEventListener("load", () => {
         const wiredBtn = document.getElementById("chat-btn");
         console.log("[Rammy] wiredBtn after clone:", wiredBtn);
         wiredBtn.addEventListener("click", (e) => {
-            console.log("[Rammy] chat-btn clicked, _chatOpen:", _chatOpen, "_justClosed:", _justClosed);
+            console.log("[Rammy] chat-btn clicked, isChatOpen:", isChatOpen());
             e.stopPropagation();
             _openChat();
         });
@@ -162,7 +171,11 @@ window.addEventListener("load", () => {
     if (closeB) {
         const fresh = closeB.cloneNode(true);
         closeB.parentNode.replaceChild(fresh, closeB);
-        document.getElementById("chat-close-btn").addEventListener("click", (e) => {
+        const wiredClose = document.getElementById("chat-close-btn");
+        // Disable pointer events on the icon so clicks always land on the button
+        const closeIcon = wiredClose.querySelector("ion-icon");
+        if (closeIcon) closeIcon.style.pointerEvents = "none";
+        wiredClose.addEventListener("click", (e) => {
             console.log("[Rammy] close-btn clicked, _chatOpen:", _chatOpen);
             e.stopPropagation();
             e.preventDefault();
