@@ -71,7 +71,11 @@ window.addEventListener("load", () => {
 
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
+let _chatOpen = false;
+
 function minimizeChat() {
+    if (!_chatOpen) return;
+    _chatOpen = false;
     chatContainer.style.transition = "transform 0.3s ease, opacity 0.3s ease";
     chatContainer.style.transform = "translateY(20px)";
     chatContainer.style.opacity = "0";
@@ -83,8 +87,9 @@ function minimizeChat() {
     }, 300);
 }
 
-// Exposed globally so host HTML onclick="restoreChat()" works
 window.restoreChat = function() {
+    if (_chatOpen) return;
+    _chatOpen = true;
     chatContainer.style.display = "flex";
     chatContainer.style.flexDirection = "column";
     chatContainer.style.transform = "translateY(20px)";
@@ -99,6 +104,15 @@ window.restoreChat = function() {
     });
     setTimeout(() => inputField.focus(), 310);
 };
+
+// Wire chat button in JS — remove onclick from HTML to avoid WCU JS interference
+if (chatBtn) {
+    chatBtn.removeAttribute("onclick");
+    chatBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.restoreChat();
+    });
+}
 
 if (closeBtn) closeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
