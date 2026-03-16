@@ -1,474 +1,319 @@
 /*
- * Rammy HR Chatbot — chat.js (Embedded Version)
- *
- * Designed to be dropped into any WCU page alongside styling_Rev1.css.
- * The host page provides:
- *   - #chat-btn         — the "Questions? Ask Rammy" pill button
- *   - #chat-container   — the chat window (starts display:none in CSS)
- *   - #chat-header      — header bar
- *   - #chat-close-btn   — X button
- *   - #chat-options-btn — options button
- *   - #message-container — scrollable message area
- *   - #chat-user-form   — wraps input + send button
- *   - #chat-user-input  — text input
- *   - #send-btn         — submit button
- *   - #status-dot       — connectivity indicator (optional)
- *
- * restoreChat() is exposed globally so the host HTML can call it via onclick.
+ * Rammy HR Chatbot — chat.js
+ * Embeddable in any WCU page.
  */
-
-// ─── Config ───────────────────────────────────────────────────────────────────
 
 const API_BASE = "http://localhost:3000/api";
 
-// ─── DOM References ───────────────────────────────────────────────────────────
-
-const chatWindow    = document.getElementById("message-container");
-const inputField    = document.getElementById("chat-user-input");
-const sendBtn       = document.getElementById("send-btn");
-const chatForm      = document.getElementById("chat-user-form");
-const chatContainer = document.getElementById("chat-container");
-const closeBtn      = document.getElementById("chat-close-btn");
-const optionsBtn    = document.getElementById("chat-options-btn");
-const chatBtn       = document.getElementById("chat-btn");
+let _open = false;
+let _closing = false;
+const WELCOME = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 // ─── Conversation History ─────────────────────────────────────────────────────
-
-const MAX_HISTORY_TURNS = 4;
-let conversationHistory = [];
-
-function addToHistory(role, content) {
-    conversationHistory.push({ role, content });
-    if (conversationHistory.length > MAX_HISTORY_TURNS * 2) {
-        conversationHistory = conversationHistory.slice(-(MAX_HISTORY_TURNS * 2));
-    }
+const MAX_TURNS = 4;
+let history = [];
+function addHistory(role, content) {
+    history.push({ role, content });
+    if (history.length > MAX_TURNS * 2) history = history.slice(-(MAX_TURNS * 2));
 }
 
-// ─── Status Dot ───────────────────────────────────────────────────────────────
+// ─── Open / Close ─────────────────────────────────────────────────────────────
+function openChat() {
+    if (_open || _closing) return;
+    _open = true;
 
+    const container = document.getElementById("chat-container");
+    const btn       = document.getElementById("chat-btn");
+    const msgs      = document.getElementById("message-container");
+
+    if (msgs && msgs.children.length === 0) {
+        addHistory("assistant", WELCOME);
+        displayMessage("Agent", WELCOME);
+    }
+
+    container.style.display        = "flex";
+    container.style.flexDirection  = "column";
+    container.style.transform      = "translateY(20px)";
+    container.style.opacity        = "0";
+    container.style.transition     = "transform 0.3s ease, opacity 0.3s ease";
+    if (btn) btn.style.display = "none";
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        container.style.transform = "translateY(0)";
+        container.style.opacity   = "1";
+    }));
+
+    setTimeout(() => {
+        const input = document.getElementById("chat-user-input");
+        if (input) input.focus();
+    }, 310);
+}
+
+function closeChat() {
+    if (!_open || _closing) return;
+    _open    = false;
+    _closing = true;
+    setTimeout(() => { _closing = false; }, 800);
+
+    const container = document.getElementById("chat-container");
+    const btn       = document.getElementById("chat-btn");
+
+    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+    container.style.transform  = "translateY(20px)";
+    container.style.opacity    = "0";
+
+    setTimeout(() => {
+        container.style.display   = "none";
+        container.style.transform = "";
+        container.style.opacity   = "";
+        if (btn) btn.style.display = "flex";
+    }, 300);
+}
+
+// Expose as no-op so WCU JS calling window.restoreChat does nothing
+window.restoreChat = function() {};
+
+// ─── Status Dot ───────────────────────────────────────────────────────────────
 async function checkStatus() {
     const dot = document.getElementById("status-dot");
     if (!dot) return;
     try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 3000);
+        const t = setTimeout(() => controller.abort(), 3000);
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
-        clearTimeout(timer);
+        clearTimeout(t);
         const data = await res.json();
-        const online = data.status === "ok" && data.python === "reachable";
-        dot.style.backgroundColor = online ? "#22c55e" : "#ef4444";
-        dot.title = online ? "Connected" : "Backend unavailable";
+        dot.style.backgroundColor = (data.status === "ok" && data.python === "reachable") ? "#22c55e" : "#ef4444";
     } catch {
-        dot.style.backgroundColor = "#ef4444";
-        dot.title = "Cannot reach server";
+        const dot2 = document.getElementById("status-dot");
+        if (dot2) dot2.style.backgroundColor = "#ef4444";
     }
-}
-
-// ─── Minimize / Restore ───────────────────────────────────────────────────────
-
-const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
-
-function _openChat() {
-const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
-
-function isChatOpen() {
-    return document.getElementById("chat-container").style.display === "flex";
-}
-
-function _openChat() {
-    console.log("[Rammy] _openChat called, isChatOpen:", isChatOpen());
-    if (isChatOpen()) return;
-
-    const container = document.getElementById("chat-container");
-    const msgArea   = document.getElementById("message-container");
-    const launchBtn = document.getElementById("chat-btn");
-    const inp       = document.getElementById("chat-user-input");
-
-    if (msgArea && msgArea.children.length === 0) {
-        addToHistory("assistant", WELCOME_TEXT);
-        displayMessage("Agent", WELCOME_TEXT);
-    }
-
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.transform = "translateY(20px)";
-    container.style.opacity = "0";
-    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-    if (launchBtn) launchBtn.style.display = "none";
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            container.style.transform = "translateY(0)";
-            container.style.opacity = "1";
-        });
-    });
-    setTimeout(() => { if (inp) inp.focus(); }, 310);
-}
-
-function _closeChat() {
-    console.log("[Rammy] _closeChat called, isChatOpen:", isChatOpen());
-    if (!isChatOpen()) return;
-
-    const container = document.getElementById("chat-container");
-    const launchBtn = document.getElementById("chat-btn");
-
-    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-    container.style.transform = "translateY(20px)";
-    container.style.opacity = "0";
-    setTimeout(() => {
-        container.style.display = "none";
-        container.style.transform = "";
-        container.style.opacity = "";
-        if (launchBtn) launchBtn.style.display = "flex";
-    }, 300);
-}
-
-// Keep window.restoreChat as a no-op
-window.restoreChat = function() {
-    console.log("[Rammy] window.restoreChat called from:", new Error().stack);
-};
-
-// Intercept _openChat to trace unexpected calls
-const _openChatOriginal = _openChat;
-window._openChatDebug = function() {
-    console.log("[Rammy] _openChat called from:", new Error().stack);
-    _openChatOriginal();
-};
-
-// Wire all buttons inside load event so our listeners are added AFTER
-// WCU's core.js finishes — ensuring our handlers take final precedence
-window.addEventListener("load", () => {
-    console.log("[Rammy] load event fired");
-
-    // Spy on ALL document clicks to see what fires after close
-    document.addEventListener("click", (e) => {
-        if (isChatOpen()) {
-            console.log("[Rammy] document click detected, target:", e.target, "id:", e.target.id, "isChatOpen:", isChatOpen());
-        }
-    }, true); // capture phase — fires before any other handler
-
-    const btn    = document.getElementById("chat-btn");
-    const closeB = document.getElementById("chat-close-btn");
-    const optB   = document.getElementById("chat-options-btn");
-
-    console.log("[Rammy] chat-btn found:", btn);
-    console.log("[Rammy] chat-close-btn found:", closeB);
-    console.log("[Rammy] window.restoreChat:", window.restoreChat);
-
-    if (btn) {
-        btn.removeAttribute("onclick");
-        const fresh = btn.cloneNode(true);
-        btn.parentNode.replaceChild(fresh, btn);
-        const wiredBtn = document.getElementById("chat-btn");
-        console.log("[Rammy] wiredBtn after clone:", wiredBtn);
-        wiredBtn.addEventListener("click", (e) => {
-            console.log("[Rammy] chat-btn clicked, isChatOpen:", isChatOpen());
-            e.stopPropagation();
-            _openChat();
-        });
-        console.log("[Rammy] chat-btn listener attached");
-    }
-
-    if (closeB) {
-        const fresh = closeB.cloneNode(true);
-        closeB.parentNode.replaceChild(fresh, closeB);
-        const wiredClose = document.getElementById("chat-close-btn");
-        // Disable pointer events on the icon so clicks always land on the button
-        const closeIcon = wiredClose.querySelector("ion-icon");
-        if (closeIcon) closeIcon.style.pointerEvents = "none";
-        wiredClose.addEventListener("click", (e) => {
-            console.log("[Rammy] close-btn clicked, _chatOpen:", _chatOpen);
-            e.stopPropagation();
-            e.preventDefault();
-            _closeChat();
-        });
-    }
-
-    if (optB) {
-        const fresh = optB.cloneNode(true);
-        optB.parentNode.replaceChild(fresh, optB);
-        document.getElementById("chat-options-btn").addEventListener("click", (e) => {
-            e.stopPropagation();
-            createDropdown();
-        });
-    }
-
-    checkStatus();
-    setInterval(checkStatus, 30000);
-    addToHistory("assistant", WELCOME_TEXT);
-});
-
-// ─── Options Dropdown ─────────────────────────────────────────────────────────
-
-function createDropdown() {
-    const existing = document.getElementById("options-dropdown");
-    if (existing) { existing.remove(); return; }
-
-    const dropdown = document.createElement("div");
-    dropdown.id = "options-dropdown";
-    dropdown.style.cssText = `
-        position: absolute !important;
-        top: 56px !important;
-        right: 12px !important;
-        background: white !important;
-        border-radius: 0.75rem !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
-        overflow: hidden !important;
-        z-index: 99999 !important;
-        min-width: 200px !important;
-        font-family: 'Quicksand', sans-serif !important;
-    `;
-
-    const items = [
-        { icon: "🗑️", label: "Clear conversation", action: clearConversation },
-        { icon: "🔄", label: "Refresh HR sources",  action: refreshSources   },
-        { icon: "📧", label: "Contact HR",           action: contactHR        },
-    ];
-
-    items.forEach(item => {
-        const btn = document.createElement("button");
-        // Use cssText with !important on every property to override WCU styles
-        btn.style.cssText = `
-            width: 100% !important;
-            padding: 0.75rem 1rem !important;
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            gap: 0.6rem !important;
-            font-size: 0.875rem !important;
-            font-family: 'Quicksand', sans-serif !important;
-            color: #374151 !important;
-            border-radius: 0 !important;
-            background: white !important;
-            cursor: pointer !important;
-            border: none !important;
-            border-bottom: 1px solid #f3f4f6 !important;
-            box-sizing: border-box !important;
-            text-align: left !important;
-            line-height: 1.4 !important;
-        `;
-        const icon = document.createElement("span");
-        icon.textContent = item.icon;
-        icon.style.cssText = `display:inline-block !important; flex-shrink:0 !important; font-size:1rem !important;`;
-        const label = document.createElement("span");
-        label.textContent = item.label;
-        label.style.cssText = `display:inline-block !important; color:#374151 !important; font-size:0.875rem !important;`;
-        btn.appendChild(icon);
-        btn.appendChild(label);
-        btn.addEventListener("mouseenter", () => btn.style.background = "#f9fafb");
-        btn.addEventListener("mouseleave", () => btn.style.background = "white");
-        btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.remove();
-            item.action();
-        });
-        dropdown.appendChild(btn);
-    });
-
-    const header = document.getElementById("chat-header");
-    header.style.position = "relative";
-    header.appendChild(dropdown);
-
-    setTimeout(() => {
-        document.addEventListener("click", function handler(e) {
-            if (!dropdown.contains(e.target) && e.target !== optionsBtn) {
-                dropdown.remove();
-                document.removeEventListener("click", handler);
-            }
-        });
-    }, 10);
-}
-
-function clearConversation() {
-    if (!confirm("Clear the conversation? This cannot be undone.")) return;
-    chatWindow.innerHTML = "";
-    conversationHistory = [];
-    const welcomeText = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
-    addToHistory("assistant", welcomeText);
-    displayMessage("Agent", welcomeText);
-}
-
-async function refreshSources() {
-    try {
-        await fetch(`${API_BASE}/refresh`, { method: "POST" });
-        displayMessage("Agent", "Sources are refreshing in the background — I'll be up to date shortly!");
-    } catch {
-        displayMessage("Agent", "Could not reach the server to refresh sources.");
-    }
-}
-
-function contactHR() {
-    displayMessage("Agent", `You can reach WCU HR directly at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or by phone at <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
 }
 
 // ─── Timestamps ───────────────────────────────────────────────────────────────
-
 function getTimestamp() {
-    const now = new Date();
-    let hours = now.getHours();
-    const mins = now.getMinutes().toString().padStart(2, "0");
-    const ampm = hours >= 12 ? "PM" : "AM";
-    hours = hours % 12 || 12;
-    return `${hours}:${mins} ${ampm}`;
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes().toString().padStart(2,"0");
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${m} ${ap}`;
 }
 
-// ─── UI Helpers ───────────────────────────────────────────────────────────────
+// ─── Sanitize HTML ────────────────────────────────────────────────────────────
+function sanitizeHtml(str) {
+    const anchors = [];
+    let s = String(str);
+    s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
+        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`);
+        return `\x00A${anchors.length-1}\x00`;
+    });
+    s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
+        anchors.push(`<a href="${href}" style="color:#6E3061;">${text}</a>`);
+        return `\x00A${anchors.length-1}\x00`;
+    });
+    s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    return s.replace(/\x00A(\d+)\x00/g, (_, i) => anchors[+i]);
+}
 
+// ─── Display Messages ─────────────────────────────────────────────────────────
 function displayMessage(role, text) {
-    const messageWrapper = document.createElement("div");
-    messageWrapper.className = (role === "You") ? "user-msg-wrapper" : "agent-msg-wrapper";
+    const chatWindow = document.getElementById("message-container");
+    if (!chatWindow) return;
 
-    const newBubble = document.createElement("div");
+    const wrapper = document.createElement("div");
+    wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
+
+    const bubble = document.createElement("div");
 
     if (role === "Typing") {
-        newBubble.className = "agent-bubble typing-indicator";
-        newBubble.id = "loading-bubble";
-        newBubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
+        bubble.className = "agent-bubble typing-indicator";
+        bubble.id = "loading-bubble";
+        bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
     } else {
-        newBubble.className = (role === "You") ? "user-bubble" : "agent-bubble";
-        newBubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+        bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
+        bubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
     }
 
-    messageWrapper.appendChild(newBubble);
+    wrapper.appendChild(bubble);
 
     if (role !== "Typing") {
-        const metaRow = document.createElement("div");
-        metaRow.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            margin-top: 0.25rem;
-            padding: 0 0.25rem;
-        `;
-
-        const nameTag = document.createElement("span");
-        nameTag.className = "profile-name";
-        nameTag.textContent = (role === "You") ? "You" : "Rammy";
-
-        const timestamp = document.createElement("span");
-        timestamp.textContent = getTimestamp();
-        timestamp.style.cssText = `font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;letter-spacing:0.02em;`;
-
-        metaRow.appendChild(nameTag);
-        metaRow.appendChild(timestamp);
-        messageWrapper.appendChild(metaRow);
+        const meta = document.createElement("div");
+        meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
+        const name = document.createElement("span");
+        name.className = "profile-name";
+        name.textContent = role === "You" ? "You" : "Rammy";
+        const ts = document.createElement("span");
+        ts.textContent = getTimestamp();
+        ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
+        meta.appendChild(name);
+        meta.appendChild(ts);
+        wrapper.appendChild(meta);
     }
 
-    chatWindow.appendChild(messageWrapper);
+    chatWindow.appendChild(wrapper);
     chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
 function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
-
     const parent = loader.parentElement;
     loader.id = "";
     loader.className = "agent-bubble";
     loader.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
-
-    const metaRow = document.createElement("div");
-    metaRow.style.cssText = `display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;`;
-
-    const nameTag = document.createElement("span");
-    nameTag.className = "profile-name";
-    nameTag.textContent = "Rammy";
-
-    const timestamp = document.createElement("span");
-    timestamp.textContent = getTimestamp();
-    timestamp.style.cssText = `font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;letter-spacing:0.02em;`;
-
-    metaRow.appendChild(nameTag);
-    metaRow.appendChild(timestamp);
-    parent.appendChild(metaRow);
-
-    chatWindow.scrollTop = chatWindow.scrollHeight;
+    const meta = document.createElement("div");
+    meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
+    const name = document.createElement("span");
+    name.className = "profile-name";
+    name.textContent = "Rammy";
+    const ts = document.createElement("span");
+    ts.textContent = getTimestamp();
+    ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
+    meta.appendChild(name);
+    meta.appendChild(ts);
+    parent.appendChild(meta);
+    document.getElementById("message-container").scrollTop = 99999;
 }
 
-function sanitizeHtml(str) {
-    const anchors = [];
-    let s = String(str);
-
-    s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"\s*[^>]*>(.*?)<\/a>/gi,
-        (match, href, text) => {
-            anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`);
-            return `\x00ANCHOR${anchors.length - 1}\x00`;
-        });
-
-    s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"\s*[^>]*>(.*?)<\/a>/gi,
-        (match, href, text) => {
-            anchors.push(`<a href="${href}" style="color:#6E3061;">${text}</a>`);
-            return `\x00ANCHOR${anchors.length - 1}\x00`;
-        });
-
-    s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    return s.replace(/\x00ANCHOR(\d+)\x00/g, (_, i) => anchors[parseInt(i)]);
+function setInputEnabled(on) {
+    const i = document.getElementById("chat-user-input");
+    const b = document.getElementById("send-btn");
+    if (i) i.disabled = !on;
+    if (b) b.disabled = !on;
 }
 
-function setInputEnabled(enabled) {
-    inputField.disabled = !enabled;
-    sendBtn.disabled    = !enabled;
-}
-
-// ─── API Calls ────────────────────────────────────────────────────────────────
-
+// ─── API ──────────────────────────────────────────────────────────────────────
 async function fetchReply(message) {
-    const response = await fetch(`${API_BASE}/chat`, {
+    const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history: conversationHistory }),
+        body: JSON.stringify({ message, history })
     });
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Server error (${response.status})`);
-    }
-    const data = await response.json();
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    const data = await res.json();
     return data.reply;
 }
 
-// ─── Core Send Flow ───────────────────────────────────────────────────────────
-
 async function handleChat() {
-    const text = inputField.value.trim();
+    const input = document.getElementById("chat-user-input");
+    if (!input) return;
+    const text = input.value.trim();
     if (!text) return;
-    inputField.value = "";
+    input.value = "";
 
     if (text.toLowerCase() === "/refresh") {
-        await refreshSources();
+        try {
+            await fetch(`${API_BASE}/refresh`, { method: "POST" });
+            displayMessage("Agent", "Sources are refreshing in the background!");
+        } catch { displayMessage("Agent", "Could not reach the server."); }
         return;
     }
 
     displayMessage("You", text);
-    addToHistory("user", text);
+    addHistory("user", text);
     displayMessage("Typing", "");
     setInputEnabled(false);
 
     try {
         const reply = await fetchReply(text);
         replaceLoadingBubble(reply);
-        addToHistory("assistant", reply);
+        addHistory("assistant", reply);
     } catch (err) {
-        console.error("Chat error:", err);
-        replaceLoadingBubble("Sorry, I'm having trouble connecting right now. Please try again.");
+        replaceLoadingBubble("Sorry, I'm having trouble connecting. Please try again.");
     } finally {
         setInputEnabled(true);
-        inputField.focus();
+        const i = document.getElementById("chat-user-input");
+        if (i) i.focus();
     }
 }
 
-// ─── Event Listeners ──────────────────────────────────────────────────────────
+// ─── Options Dropdown ─────────────────────────────────────────────────────────
+function createDropdown() {
+    const existing = document.getElementById("options-dropdown");
+    if (existing) { existing.remove(); return; }
 
-if (chatForm) {
-    chatForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        handleChat();
+    const header = document.getElementById("chat-header");
+    if (!header) return;
+
+    const dropdown = document.createElement("div");
+    dropdown.id = "options-dropdown";
+    dropdown.style.cssText = "position:absolute!important;top:56px!important;right:12px!important;background:white!important;border-radius:0.75rem!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;overflow:hidden!important;z-index:99999!important;min-width:200px!important;";
+
+    [
+        { icon: "🗑️", label: "Clear conversation", fn: () => {
+            if (!confirm("Clear conversation?")) return;
+            const m = document.getElementById("message-container");
+            if (m) m.innerHTML = "";
+            history = [];
+            addHistory("assistant", WELCOME);
+            displayMessage("Agent", WELCOME);
+        }},
+        { icon: "🔄", label: "Refresh HR sources", fn: async () => {
+            try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Refreshing sources…"); }
+            catch { displayMessage("Agent", "Could not refresh."); }
+        }},
+        { icon: "📧", label: "Contact HR", fn: () => {
+            displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
+        }},
+    ].forEach(item => {
+        const btn = document.createElement("button");
+        btn.style.cssText = "width:100%!important;padding:0.75rem 1rem!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:0.6rem!important;font-size:0.875rem!important;color:#374151!important;background:white!important;border:none!important;border-bottom:1px solid #f3f4f6!important;cursor:pointer!important;text-align:left!important;box-sizing:border-box!important;";
+        const ico = document.createElement("span");
+        ico.style.cssText = "flex-shrink:0;pointer-events:none;";
+        ico.textContent = item.icon;
+        const lbl = document.createElement("span");
+        lbl.style.cssText = "pointer-events:none;color:#374151;";
+        lbl.textContent = item.label;
+        btn.appendChild(ico);
+        btn.appendChild(lbl);
+        btn.addEventListener("click", (e) => { e.stopPropagation(); dropdown.remove(); item.fn(); });
+        dropdown.appendChild(btn);
     });
-} else {
-    sendBtn.addEventListener("click", handleChat);
-    inputField.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleChat();
-        }
-    });
+
+    header.style.position = "relative";
+    header.appendChild(dropdown);
+
+    setTimeout(() => {
+        document.addEventListener("click", function h(e) {
+            if (!dropdown.contains(e.target)) { dropdown.remove(); document.removeEventListener("click", h); }
+        });
+    }, 10);
 }
+
+// ─── Wire Everything After Page Fully Loads ───────────────────────────────────
+window.addEventListener("load", () => {
+    // Wire form submit
+    const form = document.getElementById("chat-user-form");
+    if (form) {
+        form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
+    }
+
+    // Wire all three buttons by cloning (strips WCU listeners) then re-querying
+    ["chat-btn", "chat-close-btn", "chat-options-btn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const clone = el.cloneNode(true);
+        el.parentNode.replaceChild(clone, el);
+    });
+
+    // Disable pointer events on all ion-icons so clicks hit the button not the icon
+    document.querySelectorAll("#chat-btn ion-icon, #chat-close-btn ion-icon, #chat-options-btn ion-icon, #send-btn ion-icon").forEach(ico => {
+        ico.style.pointerEvents = "none";
+    });
+
+    // Now wire fresh clones
+    const openBtn  = document.getElementById("chat-btn");
+    const closeBtn = document.getElementById("chat-close-btn");
+    const optsBtn  = document.getElementById("chat-options-btn");
+
+    if (openBtn)  openBtn.addEventListener("click",  (e) => { e.stopPropagation(); openChat(); });
+    if (closeBtn) closeBtn.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); closeChat(); });
+    if (optsBtn)  optsBtn.addEventListener("click",  (e) => { e.stopPropagation(); createDropdown(); });
+
+    // Pre-load history
+    addHistory("assistant", WELCOME);
+
+    // Status dot
+    checkStatus();
+    setInterval(checkStatus, 30000);
+});
