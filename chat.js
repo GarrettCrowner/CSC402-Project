@@ -117,35 +117,36 @@ window.restoreChat = function() {};
 // Wire all buttons inside load event so our listeners are added AFTER
 // WCU's core.js finishes — ensuring our handlers take final precedence
 window.addEventListener("load", () => {
-    // Wire launch button
-    if (chatBtn) {
-        chatBtn.removeAttribute("onclick");
-        // Clone to strip any listeners added by WCU JS
-        const newChatBtn = chatBtn.cloneNode(true);
-        chatBtn.parentNode.replaceChild(newChatBtn, chatBtn);
-        newChatBtn.addEventListener("click", (e) => {
+    // Re-query all buttons fresh after WCU JS has run
+    const btn     = document.getElementById("chat-btn");
+    const closeB  = document.getElementById("chat-close-btn");
+    const optB    = document.getElementById("chat-options-btn");
+
+    // Clone each button to strip any WCU-attached listeners, then re-add ours
+    if (btn) {
+        btn.removeAttribute("onclick");
+        const fresh = btn.cloneNode(true);
+        btn.parentNode.replaceChild(fresh, btn);
+        document.getElementById("chat-btn").addEventListener("click", (e) => {
             e.stopPropagation();
             _openChat();
         });
     }
 
-    // Wire close button — clone to strip WCU listeners
-    if (closeBtn) {
-        closeBtn.removeAttribute("onclick");
-        const newCloseBtn = closeBtn.cloneNode(true);
-        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-        newCloseBtn.addEventListener("click", (e) => {
+    if (closeB) {
+        const fresh = closeB.cloneNode(true);
+        closeB.parentNode.replaceChild(fresh, closeB);
+        document.getElementById("chat-close-btn").addEventListener("click", (e) => {
             e.stopPropagation();
             e.preventDefault();
             _closeChat();
         });
     }
 
-    // Wire options button
-    if (optionsBtn) {
-        const newOptionsBtn = optionsBtn.cloneNode(true);
-        optionsBtn.parentNode.replaceChild(newOptionsBtn, optionsBtn);
-        newOptionsBtn.addEventListener("click", (e) => {
+    if (optB) {
+        const fresh = optB.cloneNode(true);
+        optB.parentNode.replaceChild(fresh, optB);
+        document.getElementById("chat-options-btn").addEventListener("click", (e) => {
             e.stopPropagation();
             createDropdown();
         });
