@@ -54,12 +54,14 @@
   flex-direction: column !important;
   position: fixed !important;
   bottom: 0 !important;
-  right: 0 !important;
-  width: 400px !important;
+  right: 24px !important;
+  width: 380px !important;
   z-index: 9999 !important;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important;
   font-family: var(--cb-font-sans) !important;
   line-height: 1.6 !important;
+  border-radius: 1rem 1rem 0 0 !important;
+  overflow: hidden !important;
 }
 
 /* When JS opens it, override display:none with flex */
@@ -78,6 +80,7 @@
   font-family: var(--cb-font-heading) !important;
   font-size: 1.15rem !important;
   position: relative !important;
+  border-radius: 1rem 1rem 0 0 !important;
 }
 
 #chat-header button {
