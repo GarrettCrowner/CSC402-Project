@@ -72,6 +72,7 @@ window.addEventListener("load", () => {
 // ─── Minimize / Restore ───────────────────────────────────────────────────────
 
 let _chatOpen = false;
+const WELCOME_TEXT = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 function minimizeChat() {
     if (!_chatOpen) return;
@@ -90,6 +91,13 @@ function minimizeChat() {
 window.restoreChat = function() {
     if (_chatOpen) return;
     _chatOpen = true;
+
+    // Re-show welcome message if chat window is empty
+    if (chatWindow && chatWindow.children.length === 0) {
+        addToHistory("assistant", WELCOME_TEXT);
+        displayMessage("Agent", WELCOME_TEXT);
+    }
+
     chatContainer.style.display = "flex";
     chatContainer.style.flexDirection = "column";
     chatContainer.style.transform = "translateY(20px)";
@@ -404,9 +412,9 @@ if (chatForm) {
 }
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
-
-window.onload = () => {
-    const welcomeText = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
-    addToHistory("assistant", welcomeText);
-    displayMessage("Agent", welcomeText);
-};
+// Welcome message is shown when chat first opens, not on page load
+// This prevents it from disappearing after close/reopen cycles
+window.addEventListener("load", () => {
+    // Pre-populate history so context is set even before first open
+    addToHistory("assistant", WELCOME_TEXT);
+});
