@@ -96,11 +96,11 @@ function sanitizeHtml(str) {
     const anchors = [];
     let s = String(str);
     s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
-        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`);
+        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#4a1259;word-break:break-word;">${text}</a>`);
         return `\x00A${anchors.length - 1}\x00`;
     });
     s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
-        anchors.push(`<a href="${href}" style="color:#6E3061;">${text}</a>`);
+        anchors.push(`<a href="${href}" style="color:#4a1259;">${text}</a>`);
         return `\x00A${anchors.length - 1}\x00`;
     });
     s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -240,7 +240,7 @@ function createDropdown() {
             catch { displayMessage("Agent", "Could not refresh."); }
         }},
         { icon: "📧", label: "Contact HR", fn: () => {
-            displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
+            displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#4a1259;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#4a1259;">610-436-2800</a>.`);
         }},
     ];
 
