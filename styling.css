@@ -6,8 +6,8 @@
    ========================================== */
 
 :root {
-  --cb-purple:   #6E3061;
-  --cb-yellow:   #FFAE2E;
+  --cb-purple:   #4a1259;
+  --cb-yellow:   #FFE800;
   --cb-gray-50:  #f9fafb;
   --cb-gray-100: #f3f4f6;
   --cb-gray-200: #e5e7eb;
@@ -15,7 +15,7 @@
   --cb-gray-500: #6b7280;
   --cb-black:    #111827;
   --cb-font-sans:    'Nunito', sans-serif;
-  --cb-font-heading: 'Quicksand', sans-serif;
+  --cb-font-heading: 'myriad-pro', 'Quicksand', sans-serif;
 }
 
 /* ─── Launch button ─────────────────────────────────────────── */
