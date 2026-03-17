@@ -282,6 +282,14 @@ function createDropdown() {
 
 // ─── Wire Everything After Page Fully Loads ───────────────────────────────────
 window.addEventListener("load", () => {
+    // Intercept ALL clicks in capture phase — if click is inside chat-container,
+    // stop it from reaching WCU's global handlers
+    document.addEventListener("click", (e) => {
+        const container = document.getElementById("chat-container");
+        if (container && container.contains(e.target)) {
+            e.stopPropagation();
+        }
+    }, true); // true = capture phase, fires before WCU handlers
     // Wire form submit
     const form = document.getElementById("chat-user-form");
     if (form) {
