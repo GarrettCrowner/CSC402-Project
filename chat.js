@@ -1,20 +1,18 @@
 /*
  * Rammy HR Chatbot — chat.js
- * Embeddable in any WCU page.
  */
 
 const API_BASE = "http://localhost:3000/api";
 
-let _open = false;
+let _open    = false;
 let _closing = false;
 const WELCOME = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
-// ─── Conversation History ─────────────────────────────────────────────────────
-const MAX_TURNS = 4;
+// ─── History ──────────────────────────────────────────────────────────────────
 let history = [];
 function addHistory(role, content) {
     history.push({ role, content });
-    if (history.length > MAX_TURNS * 2) history = history.slice(-(MAX_TURNS * 2));
+    if (history.length > 8) history = history.slice(-8);
 }
 
 // ─── Open / Close ─────────────────────────────────────────────────────────────
@@ -31,11 +29,11 @@ function openChat() {
         displayMessage("Agent", WELCOME);
     }
 
-    container.style.display        = "flex";
-    container.style.flexDirection  = "column";
-    container.style.transform      = "translateY(20px)";
-    container.style.opacity        = "0";
-    container.style.transition     = "transform 0.3s ease, opacity 0.3s ease";
+    container.style.display       = "flex";
+    container.style.flexDirection = "column";
+    container.style.transform     = "translateY(20px)";
+    container.style.opacity       = "0";
+    container.style.transition    = "transform 0.3s ease, opacity 0.3s ease";
     if (btn) btn.style.display = "none";
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -53,7 +51,7 @@ function closeChat() {
     if (!_open || _closing) return;
     _open    = false;
     _closing = true;
-    setTimeout(() => { _closing = false; }, 800);
+    setTimeout(() => { _closing = false; }, 600);
 
     const container = document.getElementById("chat-container");
     const btn       = document.getElementById("chat-btn");
@@ -70,7 +68,6 @@ function closeChat() {
     }, 300);
 }
 
-// Expose as no-op so WCU JS calling window.restoreChat does nothing
 window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
@@ -85,46 +82,45 @@ async function checkStatus() {
         const data = await res.json();
         dot.style.backgroundColor = (data.status === "ok" && data.python === "reachable") ? "#22c55e" : "#ef4444";
     } catch {
-        const dot2 = document.getElementById("status-dot");
-        if (dot2) dot2.style.backgroundColor = "#ef4444";
+        const d = document.getElementById("status-dot");
+        if (d) d.style.backgroundColor = "#ef4444";
     }
 }
 
 // ─── Timestamps ───────────────────────────────────────────────────────────────
 function getTimestamp() {
     const d = new Date();
-    let h = d.getHours(), m = d.getMinutes().toString().padStart(2,"0");
+    let h = d.getHours(), m = d.getMinutes().toString().padStart(2, "0");
     const ap = h >= 12 ? "PM" : "AM";
     h = h % 12 || 12;
     return `${h}:${m} ${ap}`;
 }
 
-// ─── Sanitize HTML ────────────────────────────────────────────────────────────
+// ─── Sanitize ─────────────────────────────────────────────────────────────────
 function sanitizeHtml(str) {
     const anchors = [];
     let s = String(str);
     s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
         anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#6E3061;word-break:break-word;">${text}</a>`);
-        return `\x00A${anchors.length-1}\x00`;
+        return `\x00A${anchors.length - 1}\x00`;
     });
     s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
         anchors.push(`<a href="${href}" style="color:#6E3061;">${text}</a>`);
-        return `\x00A${anchors.length-1}\x00`;
+        return `\x00A${anchors.length - 1}\x00`;
     });
-    s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     return s.replace(/\x00A(\d+)\x00/g, (_, i) => anchors[+i]);
 }
 
-// ─── Display Messages ─────────────────────────────────────────────────────────
+// ─── Display ──────────────────────────────────────────────────────────────────
 function displayMessage(role, text) {
-    const chatWindow = document.getElementById("message-container");
-    if (!chatWindow) return;
+    const cw = document.getElementById("message-container");
+    if (!cw) return;
 
     const wrapper = document.createElement("div");
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
     const bubble = document.createElement("div");
-
     if (role === "Typing") {
         bubble.className = "agent-bubble typing-indicator";
         bubble.id = "loading-bubble";
@@ -133,7 +129,6 @@ function displayMessage(role, text) {
         bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
         bubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
     }
-
     wrapper.appendChild(bubble);
 
     if (role !== "Typing") {
@@ -150,8 +145,8 @@ function displayMessage(role, text) {
         wrapper.appendChild(meta);
     }
 
-    chatWindow.appendChild(wrapper);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
+    cw.appendChild(wrapper);
+    cw.scrollTop = cw.scrollHeight;
 }
 
 function replaceLoadingBubble(text) {
@@ -190,8 +185,7 @@ async function fetchReply(message) {
         body: JSON.stringify({ message, history })
     });
     if (!res.ok) throw new Error(`Server error ${res.status}`);
-    const data = await res.json();
-    return data.reply;
+    return (await res.json()).reply;
 }
 
 async function handleChat() {
@@ -202,10 +196,8 @@ async function handleChat() {
     input.value = "";
 
     if (text.toLowerCase() === "/refresh") {
-        try {
-            await fetch(`${API_BASE}/refresh`, { method: "POST" });
-            displayMessage("Agent", "Sources are refreshing in the background!");
-        } catch { displayMessage("Agent", "Could not reach the server."); }
+        try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Sources are refreshing!"); }
+        catch { displayMessage("Agent", "Could not reach the server."); }
         return;
     }
 
@@ -218,7 +210,7 @@ async function handleChat() {
         const reply = await fetchReply(text);
         replaceLoadingBubble(reply);
         addHistory("assistant", reply);
-    } catch (err) {
+    } catch {
         replaceLoadingBubble("Sorry, I'm having trouble connecting. Please try again.");
     } finally {
         setInputEnabled(true);
@@ -239,7 +231,7 @@ function createDropdown() {
     dropdown.id = "options-dropdown";
     dropdown.style.cssText = "position:absolute!important;top:56px!important;right:12px!important;background:white!important;border-radius:0.75rem!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;overflow:hidden!important;z-index:99999!important;min-width:200px!important;";
 
-    [
+    const items = [
         { icon: "🗑️", label: "Clear conversation", fn: () => {
             if (!confirm("Clear conversation?")) return;
             const m = document.getElementById("message-container");
@@ -255,18 +247,19 @@ function createDropdown() {
         { icon: "📧", label: "Contact HR", fn: () => {
             displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#6E3061;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#6E3061;">610-436-2800</a>.`);
         }},
-    ].forEach(item => {
+    ];
+
+    items.forEach(item => {
         const btn = document.createElement("button");
         btn.style.cssText = "width:100%!important;padding:0.75rem 1rem!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:0.6rem!important;font-size:0.875rem!important;color:#374151!important;background:white!important;border:none!important;border-bottom:1px solid #f3f4f6!important;cursor:pointer!important;text-align:left!important;box-sizing:border-box!important;";
         const ico = document.createElement("span");
-        ico.style.cssText = "flex-shrink:0;pointer-events:none;";
         ico.textContent = item.icon;
         const lbl = document.createElement("span");
-        lbl.style.cssText = "pointer-events:none;color:#374151;";
+        lbl.style.color = "#374151";
         lbl.textContent = item.label;
         btn.appendChild(ico);
         btn.appendChild(lbl);
-        btn.addEventListener("click", (e) => { e.stopPropagation(); dropdown.remove(); item.fn(); });
+        btn.addEventListener("click", () => { dropdown.remove(); item.fn(); });
         dropdown.appendChild(btn);
     });
 
@@ -275,64 +268,29 @@ function createDropdown() {
 
     setTimeout(() => {
         document.addEventListener("click", function h(e) {
-            const dd = document.getElementById("options-dropdown");
-            if (!dd) { document.removeEventListener("click", h, true); return; }
-            if (!dd.contains(e.target)) { dd.remove(); document.removeEventListener("click", h, true); }
-        }, true);
-    }, 10);
+            if (!dropdown.contains(e.target)) {
+                dropdown.remove();
+                document.removeEventListener("click", h);
+            }
+        });
+    }, 50);
 }
 
-// ─── Wire Everything After Page Fully Loads ───────────────────────────────────
+// ─── Wire Buttons ─────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
-    // In capture phase, if click is inside chat-container, handle it ourselves
-    // and stop WCU's bubble-phase handlers from seeing it
-    document.addEventListener("click", (e) => {
-        const container = document.getElementById("chat-container");
-        if (!container || !container.contains(e.target)) return;
+    document.getElementById("chat-btn")
+        ?.addEventListener("click", openChat);
 
-        // If click is inside the options dropdown itself, let it handle naturally
-        const dropdown = document.getElementById("options-dropdown");
-        if (dropdown && dropdown.contains(e.target)) {
-            e.stopPropagation();
-            return;
-        }
+    document.getElementById("chat-close-btn")
+        ?.addEventListener("click", closeChat);
 
-        const closeBtn = document.getElementById("chat-close-btn");
-        const optsBtn  = document.getElementById("chat-options-btn");
+    document.getElementById("chat-options-btn")
+        ?.addEventListener("click", (e) => { e.stopPropagation(); createDropdown(); });
 
-        if (closeBtn && (closeBtn === e.target || closeBtn.contains(e.target))) {
-            e.stopPropagation();
-            closeChat();
-            return;
-        }
-        if (optsBtn && (optsBtn === e.target || optsBtn.contains(e.target))) {
-            e.stopPropagation();
-            createDropdown();
-            return;
-        }
-        // Any other click inside container — just block WCU
-        e.stopPropagation();
-    }, true);
-    // Wire form submit
     const form = document.getElementById("chat-user-form");
-    if (form) {
-        form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
-    }
+    if (form) form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
 
-    // Wire open button separately since it's outside the container
-    ["chat-btn"].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const clone = el.cloneNode(true);
-        el.parentNode.replaceChild(clone, el);
-    });
-    const openBtn = document.getElementById("chat-btn");
-    if (openBtn) openBtn.addEventListener("click", (e) => { e.stopPropagation(); openChat(); });
-
-    // Pre-load history
     addHistory("assistant", WELCOME);
-
-    // Status dot
     checkStatus();
     setInterval(checkStatus, 30000);
 });
