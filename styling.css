@@ -55,7 +55,7 @@
   position: fixed !important;
   bottom: 0 !important;
   right: 24px !important;
-  width: 380px !important;
+  width: 360px !important;
   z-index: 9999 !important;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important;
   font-family: var(--cb-font-sans) !important;
@@ -113,7 +113,7 @@
 
 /* ─── Message area ──────────────────────────────────────────── */
 #message-container {
-  height: 550px !important;
+  height: 380px !important;
   background-color: var(--cb-gray-50) !important;
   padding: 1rem !important;
   gap: 0.75rem !important;
@@ -189,26 +189,28 @@
 /* ─── Footer / input ────────────────────────────────────────── */
 #chat-footer {
   background-color: var(--cb-gray-200) !important;
-  padding: 1rem !important;
+  padding: 0.6rem 0.75rem !important;
 }
 
 #chat-user-form {
-  gap: 0.75rem !important;
-  display: grid !important;
-  grid-template-columns: 1fr auto !important;
+  gap: 0.5rem !important;
+  display: flex !important;
+  flex-direction: row !important;
   align-items: center !important;
   margin: 0 !important;
+  width: 100% !important;
 }
 
 #chat-user-input {
   background: var(--cb-gray-50) !important;
   border-radius: 1rem !important;
-  padding: 1rem !important;
+  padding: 0.65rem 1rem !important;
   font-size: 0.875rem !important;
   font-family: var(--cb-font-sans) !important;
   border: none !important;
   outline: none !important;
-  width: 100% !important;
+  flex: 1 !important;
+  min-width: 0 !important;
   color: var(--cb-black) !important;
 }
 
