@@ -45,7 +45,6 @@ cd CSC402-Project
 echo 'OPENAI_API_KEY=sk-your-actual-key-here
 OPENAI_ORG_ID=
 OPENAI_PROJECT_ID=' > .env
-open .env
 ```
 
 Replace `sk-your-actual-key-here` with your real OpenAI API key, then save and close.
@@ -83,10 +82,10 @@ Once the containers are running, open a new terminal tab and run:
 
 ```bash
 cd ~/CSC402-project
-open index.html
+open embed.html
 ```
 
-Or open the project folder in VS Code, right-click `index.html` and select **Open with Live Server**.
+Or open the project folder in VS Code, right-click `embed.html` and select **Open with Live Server**.
 
 ---
 
