@@ -4,9 +4,7 @@
 
 const API_BASE = "http://localhost:3000/api";
 
-let _open    = false;
 let _closing = false;
-let _lastClosed = 0;
 const WELCOME = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 // ─── History ──────────────────────────────────────────────────────────────────
@@ -16,63 +14,56 @@ function addHistory(role, content) {
     if (history.length > 8) history = history.slice(-8);
 }
 
+// ─── DOM state helpers ────────────────────────────────────────────────────────
+function isOpen() {
+    const c = document.getElementById("chat-container");
+    return c && c.style.display !== "none";
+}
+
+function forceHide() {
+    const c = document.getElementById("chat-container");
+    if (c) c.setAttribute("style", "display:none!important;");
+}
+
+function forceShow() {
+    const c = document.getElementById("chat-container");
+    if (c) c.setAttribute("style", "display:flex!important;flex-direction:column;");
+}
+
 // ─── Open / Close ─────────────────────────────────────────────────────────────
 function openChat() {
-    if (_open) return;
-    if (Date.now() - _lastClosed < 1000) return;
-    _open = true;
+    if (isOpen() || _closing) return;
 
-    const container = document.getElementById("chat-container");
-    const btn       = document.getElementById("chat-btn");
-    const msgs      = document.getElementById("message-container");
+    const btn  = document.getElementById("chat-btn");
+    const msgs = document.getElementById("message-container");
 
     if (msgs && msgs.children.length === 0) {
         addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
     }
 
-    container.style.display       = "flex";
-    container.style.flexDirection = "column";
-    container.style.transform     = "translateY(20px)";
-    container.style.opacity       = "0";
-    container.style.transition    = "transform 0.3s ease, opacity 0.3s ease";
+    forceShow();
     if (btn) btn.style.display = "none";
-
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-        container.style.transform = "translateY(0)";
-        container.style.opacity   = "1";
-    }));
 
     setTimeout(() => {
         const input = document.getElementById("chat-user-input");
         if (input) input.focus();
-    }, 310);
+    }, 100);
 }
 
 function closeChat() {
-    if (!_open || _closing) return;
-    _open       = false;
-    _closing    = true;
-    _lastClosed = Date.now();
+    if (!isOpen() || _closing) return;
+    _closing = true;
 
-    const container = document.getElementById("chat-container");
-    const btn       = document.getElementById("chat-btn");
+    forceHide();
 
-    container.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-    container.style.transform  = "translateY(20px)";
-    container.style.opacity    = "0";
+    const btn = document.getElementById("chat-btn");
+    if (btn) btn.style.setProperty("display", "flex", "important");
 
-    setTimeout(() => {
-        container.style.display   = "none";
-        container.style.transform = "";
-        container.style.opacity   = "";
-        if (btn) btn.style.display = "flex";
-        _closing = false;
-    }, 400);
+    setTimeout(() => { _closing = false; }, 600);
 }
 
 window.restoreChat = function() {};
-window.closeChat = closeChat;
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 async function checkStatus() {
@@ -282,13 +273,16 @@ function createDropdown() {
 
 // ─── Wire Buttons ─────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
-    // Force hidden regardless of anything that ran before
-    const container = document.getElementById("chat-container");
-    if (container) {
-        container.style.setProperty("display", "none", "important");
-    }
+    // Force container hidden and button visible
+    forceHide();
     const btn = document.getElementById("chat-btn");
     if (btn) btn.style.setProperty("display", "flex", "important");
+
+    // Wire buttons
+    document.getElementById("chat-btn")
+        ?.addEventListener("click", openChat);
+    document.getElementById("chat-close-btn")
+        ?.addEventListener("click", closeChat);
     document.getElementById("chat-options-btn")
         ?.addEventListener("click", (e) => { e.stopPropagation(); createDropdown(); });
 
