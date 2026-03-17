@@ -55,7 +55,7 @@
   position: fixed !important;
   bottom: 0 !important;
   right: 24px !important;
-  width: 360px !important;
+  width: 400px !important;
   z-index: 9999 !important;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important;
   font-family: var(--cb-font-sans) !important;
