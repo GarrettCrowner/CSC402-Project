@@ -72,7 +72,6 @@ function closeChat() {
 }
 
 window.restoreChat = function() {};
-window.openChat  = openChat;
 window.closeChat = closeChat;
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
@@ -283,6 +282,13 @@ function createDropdown() {
 
 // ─── Wire Buttons ─────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
+    // Force hidden regardless of anything that ran before
+    const container = document.getElementById("chat-container");
+    if (container) {
+        container.style.setProperty("display", "none", "important");
+    }
+    const btn = document.getElementById("chat-btn");
+    if (btn) btn.style.setProperty("display", "flex", "important");
     document.getElementById("chat-options-btn")
         ?.addEventListener("click", (e) => { e.stopPropagation(); createDropdown(); });
 
