@@ -275,48 +275,59 @@ function createDropdown() {
 
     setTimeout(() => {
         document.addEventListener("click", function h(e) {
-            if (!dropdown.contains(e.target)) { dropdown.remove(); document.removeEventListener("click", h); }
-        });
+            const dd = document.getElementById("options-dropdown");
+            if (!dd) { document.removeEventListener("click", h, true); return; }
+            if (!dd.contains(e.target)) { dd.remove(); document.removeEventListener("click", h, true); }
+        }, true);
     }, 10);
 }
 
 // ─── Wire Everything After Page Fully Loads ───────────────────────────────────
 window.addEventListener("load", () => {
-    // Intercept ALL clicks in capture phase — if click is inside chat-container,
-    // stop it from reaching WCU's global handlers
+    // In capture phase, if click is inside chat-container, handle it ourselves
+    // and stop WCU's bubble-phase handlers from seeing it
     document.addEventListener("click", (e) => {
         const container = document.getElementById("chat-container");
-        if (container && container.contains(e.target)) {
+        if (!container || !container.contains(e.target)) return;
+
+        // If click is inside the options dropdown itself, let it handle naturally
+        const dropdown = document.getElementById("options-dropdown");
+        if (dropdown && dropdown.contains(e.target)) {
             e.stopPropagation();
+            return;
         }
-    }, true); // true = capture phase, fires before WCU handlers
+
+        const closeBtn = document.getElementById("chat-close-btn");
+        const optsBtn  = document.getElementById("chat-options-btn");
+
+        if (closeBtn && (closeBtn === e.target || closeBtn.contains(e.target))) {
+            e.stopPropagation();
+            closeChat();
+            return;
+        }
+        if (optsBtn && (optsBtn === e.target || optsBtn.contains(e.target))) {
+            e.stopPropagation();
+            createDropdown();
+            return;
+        }
+        // Any other click inside container — just block WCU
+        e.stopPropagation();
+    }, true);
     // Wire form submit
     const form = document.getElementById("chat-user-form");
     if (form) {
         form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
     }
 
-    // Wire all three buttons by cloning (strips WCU listeners) then re-querying
-    ["chat-btn", "chat-close-btn", "chat-options-btn"].forEach(id => {
+    // Wire open button separately since it's outside the container
+    ["chat-btn"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         const clone = el.cloneNode(true);
         el.parentNode.replaceChild(clone, el);
     });
-
-    // Disable pointer events on all ion-icons so clicks hit the button not the icon
-    document.querySelectorAll("#chat-btn ion-icon, #chat-close-btn ion-icon, #chat-options-btn ion-icon, #send-btn ion-icon").forEach(ico => {
-        ico.style.pointerEvents = "none";
-    });
-
-    // Now wire fresh clones
-    const openBtn  = document.getElementById("chat-btn");
-    const closeBtn = document.getElementById("chat-close-btn");
-    const optsBtn  = document.getElementById("chat-options-btn");
-
-    if (openBtn)  openBtn.addEventListener("click",  (e) => { e.stopPropagation(); openChat(); });
-    if (closeBtn) closeBtn.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); closeChat(); });
-    if (optsBtn)  optsBtn.addEventListener("click",  (e) => { e.stopPropagation(); createDropdown(); });
+    const openBtn = document.getElementById("chat-btn");
+    if (openBtn) openBtn.addEventListener("click", (e) => { e.stopPropagation(); openChat(); });
 
     // Pre-load history
     addHistory("assistant", WELCOME);
