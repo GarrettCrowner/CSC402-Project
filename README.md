@@ -34,7 +34,7 @@ Before you begin, make sure you have the following installed:
 ### 1. Clone the repository
 
 ```bash
-git clone -b Garrett_Crowner https://github.com/GarrettCrowner/CSC402-Project.git
+git clone https://github.com/GarrettCrowner/CSC402-Project.git
 cd CSC402-Project
 ```
 
