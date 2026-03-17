@@ -6,6 +6,7 @@ const API_BASE = "http://localhost:3000/api";
 
 let _open    = false;
 let _closing = false;
+let _lastClosed = 0;
 const WELCOME = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
 
 // ─── History ──────────────────────────────────────────────────────────────────
@@ -17,7 +18,8 @@ function addHistory(role, content) {
 
 // ─── Open / Close ─────────────────────────────────────────────────────────────
 function openChat() {
-    if (_open || _closing) return;
+    if (_open) return;
+    if (Date.now() - _lastClosed < 1000) return;
     _open = true;
 
     const container = document.getElementById("chat-container");
@@ -49,9 +51,9 @@ function openChat() {
 
 function closeChat() {
     if (!_open || _closing) return;
-    _open    = false;
-    _closing = true;
-    setTimeout(() => { _closing = false; }, 600);
+    _open       = false;
+    _closing    = true;
+    _lastClosed = Date.now();
 
     const container = document.getElementById("chat-container");
     const btn       = document.getElementById("chat-btn");
@@ -65,10 +67,13 @@ function closeChat() {
         container.style.transform = "";
         container.style.opacity   = "";
         if (btn) btn.style.display = "flex";
-    }, 300);
+        _closing = false;
+    }, 400);
 }
 
 window.restoreChat = function() {};
+window.openChat  = openChat;
+window.closeChat = closeChat;
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 async function checkStatus() {
@@ -278,12 +283,6 @@ function createDropdown() {
 
 // ─── Wire Buttons ─────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
-    document.getElementById("chat-btn")
-        ?.addEventListener("click", openChat);
-
-    document.getElementById("chat-close-btn")
-        ?.addEventListener("click", closeChat);
-
     document.getElementById("chat-options-btn")
         ?.addEventListener("click", (e) => { e.stopPropagation(); createDropdown(); });
 
