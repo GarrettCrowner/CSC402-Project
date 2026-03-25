@@ -398,23 +398,6 @@ Rules:
 - Respond naturally in 1-3 sentences.
 - ALWAYS end your response with a relevant HTML anchor link using the exact URLs
   listed under "Available source URLs" in the context. Use natural active anchor text.
-  List of important URLs:
-    https://wcupa.joinhandshake.com/login
-    https://www.wcupa.edu/_services/careerDevelopment/contact.aspx
-    https://portal.passhe.edu/irj/portal
-    https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents
-    https://www.schooljobs.com/careers/wcupa
-    https://www.schooljobs.com/careers/wcupa/user/ResetPassword
-    https://www.ramecard.com/
-    https://www.passhe.edu/hr/benefits/healthcare/
-    https://www.passhe.edu/hr/benefits/life-events/index.html
-    https://www.pebtf.org/GetHealthy/
-    https://www.passhe.edu/hr/benefits/insurance/ltd.html
-    https://www.passhe.edu/hr/benefits/insurance/vglip.html
-    https://secure.optumfinancial.com/portal/CC
-    https://www.liveandworkwell.com/en/public
-    https://www.wcupa.edu/hr/FMLA.aspx
-    
   Format links exactly like this — no markdown, no raw URLs:
   <a href="https://example.com">Learn more about retirement plans here</a>
   or vary naturally:
