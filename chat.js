@@ -31,24 +31,66 @@ function forceShow() {
 }
 
 // ─── Open / Close ─────────────────────────────────────────────────────────────
+let _welcomed = false;
+
 function openChat() {
     if (isOpen() || _closing) return;
 
-    const btn  = document.getElementById("chat-btn");
-    const msgs = document.getElementById("message-container");
-
-    if (msgs && msgs.children.length === 0) {
-        addHistory("assistant", WELCOME);
-        displayMessage("Agent", WELCOME);
-    }
-
+    // Show the container first so appended messages are visible
     forceShow();
+    const btn = document.getElementById("chat-btn");
     if (btn) btn.style.display = "none";
+
+    if (!_welcomed) {
+        _welcomed = true;
+        showConnecting();
+        // checkStatusAndWelcome handles its own minimum display time internally
+        // and calls replaceConnecting when ready — fire and forget here.
+        checkStatusAndWelcome();
+    }
 
     setTimeout(() => {
         const input = document.getElementById("chat-user-input");
         if (input) input.focus();
     }, 100);
+}
+
+/** Renders an animated "Attempting to connect" bubble with a cycling ... */
+
+function showConnecting() {
+    const cw = document.getElementById("message-container");
+    if (!cw) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "agent-msg-wrapper";
+    wrapper.id = "connecting-wrapper";
+
+    const bubble = document.createElement("div");
+    bubble.className = "agent-bubble";
+    bubble.style.cssText = "opacity:0.65;font-style:italic;";
+
+    const p = document.createElement("p");
+    p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
+    p.textContent = "Attempting to connect to server…";
+    bubble.appendChild(p);
+
+    wrapper.appendChild(bubble);
+    cw.appendChild(wrapper);
+    cw.scrollTop = cw.scrollHeight;
+}
+
+/** On success: remove the connecting bubble silently, then show the welcome.
+ *  On failure: remove the bubble and reset so the next open retries. */
+function replaceConnecting(isError) {
+    const wrapper = document.getElementById("connecting-wrapper");
+    if (wrapper) wrapper.remove();
+
+    if (!isError) {
+        addHistory("assistant", WELCOME);
+        displayMessage("Agent", WELCOME);
+    }
+    // On error we leave the chat empty — the status dot turns red and
+    // _welcomed resets so the next open tries again automatically.
 }
 
 function closeChat() {
@@ -66,6 +108,32 @@ function closeChat() {
 window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
+
+/** Called on first open — checks health, waits for min display time, then swaps bubble. */
+async function checkStatusAndWelcome() {
+    const dot = document.getElementById("status-dot");
+    let ok = false;
+    try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(t);
+        const data = await res.json();
+        ok = data.status === "ok" && data.python === "reachable";
+        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
+    } catch {
+        if (dot) dot.style.backgroundColor = "#ef4444";
+    }
+
+    if (ok) {
+        replaceConnecting(false);
+    } else {
+        replaceConnecting(true);
+        _welcomed = false; // allow retry on next open
+    }
+}
+
+/** Periodic background ping — only updates the dot, no UI messages. */
 async function checkStatus() {
     const dot = document.getElementById("status-dot");
     if (!dot) return;
@@ -234,7 +302,26 @@ function displayMessage(role, text) {
         bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
     } else {
         bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
-        bubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+        // For agent messages, parse out options/follow-ups before displaying
+        if (role !== "You") {
+            const { mainText, options, followUp } = parseReply(text);
+            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+            wrapper.appendChild(bubble);
+            const meta = document.createElement("div");
+            meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
+            const name = document.createElement("span"); name.className = "profile-name"; name.textContent = "Rammy";
+            const ts = document.createElement("span"); ts.textContent = getTimestamp();
+            ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
+            meta.appendChild(name); meta.appendChild(ts);
+            wrapper.appendChild(meta);
+            cw.appendChild(wrapper);
+            // Render chips after the wrapper
+            if (options.length) renderQuickReplies(options, followUp, mainText);
+            cw.scrollTop = cw.scrollHeight;
+            return;
+        } else {
+            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
+        }
     }
     wrapper.appendChild(bubble);
 
@@ -260,9 +347,14 @@ function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
     const parent = loader.parentElement;
+    const cw = document.getElementById("message-container");
+
+    const { mainText, options, followUp } = parseReply(text);
+
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+    loader.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+
     const meta = document.createElement("div");
     meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
     const name = document.createElement("span");
@@ -274,7 +366,13 @@ function replaceLoadingBubble(text) {
     meta.appendChild(name);
     meta.appendChild(ts);
     parent.appendChild(meta);
-    document.getElementById("message-container").scrollTop = 99999;
+
+    if (cw) cw.scrollTop = 99999;
+
+    // Render chips after the loading bubble is replaced
+    if (options.length) renderQuickReplies(options, followUp, mainText);
+
+    if (cw) cw.scrollTop = 99999;
 }
 
 function setInputEnabled(on) {
@@ -295,26 +393,32 @@ async function fetchReply(message) {
     return (await res.json()).reply;
 }
 
-async function handleChat() {
+async function handleChat(displayText, apiText) {
     const input = document.getElementById("chat-user-input");
     if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
+
+    // displayText = what shows in the bubble (chip label, or raw input)
+    // apiText     = what gets sent to the API (may include hidden context)
+    const visibleText = displayText || input.value.trim();
+    const sendText    = apiText    || visibleText;
+
+    if (!visibleText) return;
     input.value = "";
 
-    if (text.toLowerCase() === "/refresh") {
+    if (sendText.toLowerCase() === "/refresh") {
         try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Sources are refreshing!"); }
         catch { displayMessage("Agent", "Could not reach the server."); }
         return;
     }
 
-    displayMessage("You", text);
-    addHistory("user", text);
+    clearQuickReplies();
+    displayMessage("You", visibleText);   // show only the friendly label
+    addHistory("user", sendText);          // store full context in history
     displayMessage("Typing", "");
     setInputEnabled(false);
 
     try {
-        const reply = await fetchReply(text);
+        const reply = await fetchReply(sendText);
         replaceLoadingBubble(reply);
         addHistory("assistant", reply);
     } catch {
@@ -344,8 +448,10 @@ function createDropdown() {
             const m = document.getElementById("message-container");
             if (m) m.innerHTML = "";
             history = [];
+            _welcomed = false;
             addHistory("assistant", WELCOME);
             displayMessage("Agent", WELCOME);
+            _welcomed = true;
         }},
         { icon: "🔄", label: "Refresh HR sources", fn: async () => {
             try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Refreshing sources…"); }
@@ -401,7 +507,6 @@ window.addEventListener("load", () => {
     const form = document.getElementById("chat-user-form");
     if (form) form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
 
-    addHistory("assistant", WELCOME);
     checkStatus();
     setInterval(checkStatus, 30000);
 });
