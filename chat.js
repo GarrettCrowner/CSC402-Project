@@ -31,15 +31,18 @@ function forceShow() {
 }
 
 // ─── Open / Close ─────────────────────────────────────────────────────────────
+let _welcomed = false;
+
 function openChat() {
     if (isOpen() || _closing) return;
 
     const btn  = document.getElementById("chat-btn");
     const msgs = document.getElementById("message-container");
 
-    if (msgs && msgs.children.length === 0) {
+    if (!_welcomed) {
         addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
+        _welcomed = true;
     }
 
     forceShow();
@@ -381,8 +384,10 @@ function createDropdown() {
             const m = document.getElementById("message-container");
             if (m) m.innerHTML = "";
             history = [];
+            _welcomed = false;
             addHistory("assistant", WELCOME);
             displayMessage("Agent", WELCOME);
+            _welcomed = true;
         }},
         { icon: "🔄", label: "Refresh HR sources", fn: async () => {
             try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Refreshing sources…"); }
