@@ -56,7 +56,6 @@ function openChat() {
 }
 
 /** Renders an animated "Attempting to connect" bubble with a cycling ... */
-let _connectingShownAt = 0;
 
 function showConnecting() {
     const cw = document.getElementById("message-container");
@@ -78,7 +77,6 @@ function showConnecting() {
     wrapper.appendChild(bubble);
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
-    _connectingShownAt = Date.now();
 }
 
 /** On success: remove the connecting bubble silently, then show the welcome.
@@ -113,7 +111,6 @@ window.restoreChat = function() {};
 
 /** Called on first open — checks health, waits for min display time, then swaps bubble. */
 async function checkStatusAndWelcome() {
-    const MIN_MS = 1500;
     const dot = document.getElementById("status-dot");
     let ok = false;
     try {
@@ -126,12 +123,6 @@ async function checkStatusAndWelcome() {
         if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
-    }
-
-    // Enforce minimum bubble display time regardless of how fast the server replied
-    const elapsed = Date.now() - _connectingShownAt;
-    if (elapsed < MIN_MS) {
-        await new Promise(resolve => setTimeout(resolve, MIN_MS - elapsed));
     }
 
     if (ok) {
