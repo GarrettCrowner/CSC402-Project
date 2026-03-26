@@ -66,7 +66,7 @@ function showConnecting() {
     const bubble = document.createElement("div");
     bubble.className = "agent-bubble";
     bubble.style.cssText = "opacity:0.6;font-style:italic;";
-    bubble.innerHTML = "<p>Connecting to server…</p>";
+    bubble.innerHTML = '<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">Connecting to server\u2026</p>';
 
     wrapper.appendChild(bubble);
     cw.appendChild(wrapper);
@@ -87,7 +87,7 @@ function replaceConnecting(text, isError) {
         const b = document.createElement("div");
         b.className = "agent-bubble";
         b.style.cssText = "color:#ef4444;font-style:italic;opacity:0.85;";
-        b.innerHTML = "<p>" + text + "</p>";
+        b.innerHTML = '<p style="color:#ef4444;margin:0;padding:0;font-size:1rem;line-height:1.5;">' + text + "</p>";
         w.appendChild(b);
         cw.appendChild(w);
         cw.scrollTop = cw.scrollHeight;
@@ -200,10 +200,9 @@ function parseReply(text) {
     }
 
     // 2. Extract a trailing follow-up question (last sentence ending with ?)
-    // Must be after any link tags, and not inside an <a> tag
-    const questionMatch = mainText.match(/([^.!?\n<][^<\n]*\?)\s*$/);
+    // Requires a prior sentence-ending punctuation so the entire text is never consumed.
+    const questionMatch = mainText.match(/(?:[.!?])\s+([A-Z][^.!?\n<]*\?)\s*$/);
     if (questionMatch && !options.length) {
-        // Only treat as follow-up chip if it's a standalone question sentence
         const q = questionMatch[1].trim();
         if (q.split(" ").length >= 4) { // at least 4 words = real question
             followUp = q;
