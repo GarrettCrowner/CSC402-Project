@@ -36,22 +36,65 @@ let _welcomed = false;
 function openChat() {
     if (isOpen() || _closing) return;
 
-    const btn  = document.getElementById("chat-btn");
-    const msgs = document.getElementById("message-container");
+    // Show the container first so appended messages are visible
+    forceShow();
+    const btn = document.getElementById("chat-btn");
+    if (btn) btn.style.display = "none";
 
     if (!_welcomed) {
-        addHistory("assistant", WELCOME);
-        displayMessage("Agent", WELCOME);
         _welcomed = true;
+        // Show a "connecting" placeholder, then swap for welcome once health is confirmed
+        showConnecting();
+        checkStatusAndWelcome();
     }
-
-    forceShow();
-    if (btn) btn.style.display = "none";
 
     setTimeout(() => {
         const input = document.getElementById("chat-user-input");
         if (input) input.focus();
     }, 100);
+}
+
+/** Renders a temporary "connecting" bubble with an id so we can replace it. */
+function showConnecting() {
+    const cw = document.getElementById("message-container");
+    if (!cw) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "agent-msg-wrapper";
+    wrapper.id = "connecting-wrapper";
+
+    const bubble = document.createElement("div");
+    bubble.className = "agent-bubble";
+    bubble.style.cssText = "opacity:0.6;font-style:italic;";
+    bubble.innerHTML = "<p>Connecting to server…</p>";
+
+    wrapper.appendChild(bubble);
+    cw.appendChild(wrapper);
+    cw.scrollTop = cw.scrollHeight;
+}
+
+/** Replaces the connecting bubble with the real welcome, or an error message. */
+function replaceConnecting(text, isError) {
+    const wrapper = document.getElementById("connecting-wrapper");
+    if (wrapper) wrapper.remove();
+
+    if (isError) {
+        // Display inline without adding to history so it doesn't confuse the model
+        const cw = document.getElementById("message-container");
+        if (!cw) return;
+        const w = document.createElement("div");
+        w.className = "agent-msg-wrapper";
+        const b = document.createElement("div");
+        b.className = "agent-bubble";
+        b.style.cssText = "color:#ef4444;font-style:italic;opacity:0.85;";
+        b.innerHTML = "<p>" + text + "</p>";
+        w.appendChild(b);
+        cw.appendChild(w);
+        cw.scrollTop = cw.scrollHeight;
+    } else {
+        addHistory("assistant", WELCOME);
+        displayMessage("Agent", WELCOME);
+    }
 }
 
 function closeChat() {
@@ -69,6 +112,32 @@ function closeChat() {
 window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
+
+/** Called on first open — checks health then swaps the connecting bubble. */
+async function checkStatusAndWelcome() {
+    const dot = document.getElementById("status-dot");
+    try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(t);
+        const data = await res.json();
+        const ok = data.status === "ok" && data.python === "reachable";
+        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
+        if (ok) {
+            replaceConnecting(WELCOME, false);
+        } else {
+            replaceConnecting("Could not reach the server. Please try again shortly.", true);
+            _welcomed = false; // allow retry on next open
+        }
+    } catch {
+        if (dot) dot.style.backgroundColor = "#ef4444";
+        replaceConnecting("Could not reach the server. Please try again shortly.", true);
+        _welcomed = false; // allow retry on next open
+    }
+}
+
+/** Periodic background ping — only updates the dot, no UI messages. */
 async function checkStatus() {
     const dot = document.getElementById("status-dot");
     if (!dot) return;
