@@ -33,7 +33,7 @@ function forceShow() {
 // ─── Open / Close ─────────────────────────────────────────────────────────────
 let _welcomed = false;
 
-async function openChat() {
+function openChat() {
     if (isOpen() || _closing) return;
 
     // Show the container first so appended messages are visible
@@ -43,19 +43,8 @@ async function openChat() {
 
     if (!_welcomed) {
         _welcomed = true;
-        // Show connecting bubble, then wait at least 1.5s before swapping so
-        // the animation is always visible even if the server responds instantly.
         showConnecting();
-        const [ok] = await Promise.all([
-            checkStatusAndWelcome(),
-            new Promise(resolve => setTimeout(resolve, 1500))
-        ]);
-        if (ok) {
-            replaceConnecting(false);
-        } else {
-            replaceConnecting(true);
-            _welcomed = false; // allow retry on next open
-        }
+        checkStatusAndWelcome(); // fires async in background, resolves into replaceConnecting
     }
 
     setTimeout(() => {
@@ -66,6 +55,7 @@ async function openChat() {
 
 /** Renders an animated "Attempting to connect" bubble with a cycling ... */
 let _connectingInterval = null;
+let _connectingShownAt = 0;
 
 function showConnecting() {
     const cw = document.getElementById("message-container");
@@ -91,6 +81,7 @@ function showConnecting() {
 
     // Cycle through . / .. / ... every 500 ms
     let dots = 1;
+    _connectingShownAt = Date.now();
     _connectingInterval = setInterval(() => {
         const el = document.getElementById("connecting-text");
         if (!el) { clearInterval(_connectingInterval); return; }
@@ -132,21 +123,34 @@ window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 
-/** Called on first open — checks health and returns true if server is up. */
+/** Called on first open — checks health, waits for min display time, then swaps bubble. */
 async function checkStatusAndWelcome() {
+    const MIN_MS = 1500;
     const dot = document.getElementById("status-dot");
+    let ok = false;
     try {
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), 5000);
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(t);
         const data = await res.json();
-        const ok = data.status === "ok" && data.python === "reachable";
+        ok = data.status === "ok" && data.python === "reachable";
         if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
-        return ok;
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
-        return false;
+    }
+
+    // Enforce minimum bubble display time regardless of how fast the server replied
+    const elapsed = Date.now() - _connectingShownAt;
+    if (elapsed < MIN_MS) {
+        await new Promise(resolve => setTimeout(resolve, MIN_MS - elapsed));
+    }
+
+    if (ok) {
+        replaceConnecting(false);
+    } else {
+        replaceConnecting(true);
+        _welcomed = false; // allow retry on next open
     }
 }
 
