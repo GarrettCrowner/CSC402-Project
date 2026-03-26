@@ -24,6 +24,8 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from openai import OpenAI
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,13 @@ ALLOWED_URLS = [
 ]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
+
+# ─── Qdrant Config ────────────────────────────────────────────────────────────
+QDRANT_HOST       = os.getenv("QDRANT_HOST", "qdrant")   # Docker service name
+QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_COLLECTION = "rammy_hr"
+EMBED_MODEL       = "all-MiniLM-L6-v2"
+QDRANT_TOP_K      = 5   # number of chunks to retrieve per query
 
 PII_WARNING_REPLY = (
     "For your privacy, please do not include personal information in chat. "
@@ -226,172 +235,51 @@ def build_chunks(pages: Dict[str, str]) -> List[Dict[str, str]]:
     return all_chunks
 
 
-# ─── Retrieval ────────────────────────────────────────────────────────────────
+# ─── Qdrant Semantic Retrieval ───────────────────────────────────────────────
+# Replaces the previous keyword-scoring approach.
+# build_context() API is unchanged — the rest of the file is unaffected.
 
-# ── Extend this table to boost new topic keywords without touching scoring logic ──
-PHRASE_BOOSTS: List[Tuple[str, float]] = [
-    # Address / ESS
-    ("update address",        4.0),
-    ("address",               2.0),
-    ("email",                 2.0),
-    ("employee self service", 3.0),
-    ("ess",                   3.0),
-    ("fiori",                 3.0),
-    # Loans / forgiveness
-    ("forgiveness form",      3.0),
-    ("loan forgiveness",      3.0),
-    # Employee groups / relations
-    ("employee group",        3.0),
-    # Leave
-    ("fmla",                  3.0),
-    ("time off",              2.5),
-    ("leave",                 2.0),
-    ("sick leave",            2.5),
-    # Retirement
-    ("retirement",            3.0),
-    ("401k",                  3.5),
-    ("403b",                  3.5),
-    ("457",                   3.0),
-    ("arp",                   3.0),
-    ("sers",                  3.0),
-    ("voluntary retirement",  3.5),
-    ("deferred compensation", 3.0),
-    ("fidelity",              2.5),
-    ("tiaa",                  2.5),
-    ("tsa",                   2.5),
-    # Parking
-    ("parking",               3.0),
-    ("parking permit",        4.0),
-    ("parking pass",          4.0),
-    ("garage pass",           3.5),
-    ("e permit",              3.5),
-    # Payroll
-    ("payroll",               3.0),
-    ("direct deposit",        3.5),
-    ("pay statement",         3.0),
-    ("w-4",                   3.0),
-    ("w-2",                   3.0),
-    # Benefits
-    ("benefits",              2.0),
-    ("health insurance",      2.5),
-    ("dental",                2.0),
-    ("vision",                2.0),
-    # Workers comp
-    ("workers comp",          4.0),
-    ("workers compensation",  4.0),
-    ("workplace injury",      4.0),
-    ("work injury",           4.0),
-    ("incident report",       3.5),
-    ("panel physician",       3.5),
-    # Tuition
-    ("tuition waiver",        4.0),
-    ("tuition reimbursement", 4.0),
-    ("tuition benefit",       3.5),
-    ("tuition",               2.5),
-    # Holidays / calendar
-    ("holiday",               3.0),
-    ("campus closure",        3.5),
-    ("academic calendar",     3.0),
-    # Professional development
-    ("professional development", 3.0),
-    ("linkedin learning",     3.0),
-    ("training",              2.0),
-    # I-9
-    ("i-9",                   3.0),
-    # Onboarding
-    ("new hire",              2.5),
-    ("onboarding",            2.5),
-]
+def build_context(question: str, chunks: object = None) -> str:
+    """
+    Queries Qdrant for the top-K semantically similar chunks, then
+    formats them into the same context string the prompts already expect.
+    The `chunks` parameter is accepted but ignored (kept for call-site compat).
+    """
+    global _qdrant_client, _embed_model
 
-_QUERY_REPLACEMENTS = [
-    (r"\bchange\b",              "update"),
-    (r"\bmodify\b",              "update"),
-    (r"\bedit\b",                "update"),
-    (r"\bemail address\b",       "email"),
-    (r"\bhome address\b",        "address"),
-    (r"\b401k\b",                "retirement voluntary"),
-    (r"\bparking pass\b",        "parking permit"),
-    (r"\bhurt at work\b",        "workers compensation injury"),
-    (r"\binjured at work\b",     "workers compensation injury"),
-    (r"\bwork injury\b",         "workers compensation"),
-    (r"\bworkplace accident\b",  "workers compensation injury"),
-    (r"\baccident at work\b",    "workers compensation injury"),
-    (r"\breport an? injury\b",   "workers compensation"),
-    (r"\btuition help\b",        "tuition waiver reimbursement"),
-    (r"\btake classes\b",        "tuition waiver"),
-    (r"\bgo back to school\b",   "tuition waiver"),
-    (r"\bday off\b",             "holiday campus closure"),
-    (r"\bdays off\b",            "holiday campus closure"),
-    (r"\bschool closed\b",       "campus closure holiday"),
-    (r"\bsick\b",                "sick leave fmla"),
-    (r"\bvacation\b",            "leave time off"),
-    (r"\bpay stub\b",            "pay statement payroll"),
-    (r"\bpaycheck\b",            "payroll pay statement"),
-    (r"\bhealth (insurance|care|plan|coverage)\b", "benefits health insurance"),
-    (r"\bdoctor\b",              "health insurance benefits"),
-    (r"\bam i able to\b",        ""),
-    (r"\bcan i\b",               ""),
-    (r"\bhow do i\b",            ""),
-    (r"\bhow can i\b",           ""),
-    (r"\bwhere do i\b",          ""),
-    (r"\bwhat is\b",             ""),
-    (r"\bplease\b",              ""),
-]
+    if _qdrant_client is None or _embed_model is None:
+        print("[retrieval] Qdrant client or embed model not initialised — falling back to empty context.")
+        return ""
 
-# Pre-compile for speed
-_COMPILED_REPLACEMENTS = [(re.compile(p), r) for p, r in _QUERY_REPLACEMENTS]
+    try:
+        query_vector = _embed_model.encode(question).tolist()
+        results = _qdrant_client.search(
+            collection_name=QDRANT_COLLECTION,
+            query_vector=query_vector,
+            limit=QDRANT_TOP_K,
+            with_payload=True,
+        )
+    except Exception as e:
+        print(f"[retrieval] Qdrant search error: {e}")
+        return ""
 
+    if not results:
+        return ""
 
-def normalize_question_for_search(q: str) -> str:
-    q = q.lower().strip()
-    for pattern, repl in _COMPILED_REPLACEMENTS:
-        q = pattern.sub(repl, q)
-    q = re.sub(r"[^a-z0-9\s]", " ", q)
-    return normalize_text(q)
+    selected = [
+        {"url": r.payload.get("url", ""), "text": r.payload.get("text", "")}
+        for r in results
+        if r.payload.get("text")
+    ]
 
-
-def tokenize(text: str) -> List[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def score_chunk(question: str, chunk: str) -> float:
-    q_norm = normalize_question_for_search(question)
-    c_norm = normalize_question_for_search(chunk)
-    q_tokens = tokenize(q_norm)
-    c_tokens = set(tokenize(c_norm))
-
-    if not q_tokens:
-        return 0.0
-
-    score = sum(1.0 for t in q_tokens if t in c_tokens)
-
-    for phrase, value in PHRASE_BOOSTS:
-        if phrase in q_norm and phrase in c_norm:
-            score += value
-
-    return score
-
-
-def retrieve_relevant_chunks(
-    question: str, chunks: List[Dict[str, str]], top_k: int = 5
-) -> List[Dict[str, str]]:
-    scored = [(score_chunk(question, c["text"]), c) for c in chunks]
-    # Lower threshold from >0 to >=1.5 to filter noise,
-    # but keep anything with a phrase boost hit (those are always >= 2.0)
-    scored = [(s, c) for s, c in scored if s >= 1.5]
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [c for _, c in scored[:top_k]]
-
-
-def build_context(question: str, chunks: List[Dict[str, str]]) -> str:
-    selected = retrieve_relevant_chunks(question, chunks)
     if not selected:
         return ""
-    # Deduplicate URLs while preserving order
-    seen_urls = []
+
+    seen_urls: List[str] = []
     for c in selected:
-        if c["url"] not in seen_urls:
+        if c["url"] and c["url"] not in seen_urls:
             seen_urls.append(c["url"])
+
     parts = [f"Source {i}: {c['url']}\n{c['text']}" for i, c in enumerate(selected, 1)]
     source_list = "\n".join(f"- {url}" for url in seen_urls)
     return "\n\n".join(parts) + f"\n\nAvailable source URLs:\n{source_list}"
@@ -579,10 +467,56 @@ def ask_model(
 
 app = Flask(__name__)
 
-# Module-level cache — loaded once on startup, refreshed via /refresh
-_chunks: List[Dict[str, str]] = []
+# ── Initialise on module import (covers both direct run and flask/gunicorn) ───
+# Uses a flag so it only runs once even if the module is imported multiple times.
+_startup_done = False
+
+def _ensure_startup():
+    global _startup_done, _client
+    if _startup_done:
+        return
+    _startup_done = True
+    if not OPENAI_API_KEY:
+        print("[startup] WARNING: OPENAI_API_KEY not set.")
+    else:
+        _client = _init_client()
+    _init_qdrant()
+
+with app.app_context():
+    _ensure_startup()
+
+# Module-level state — initialised once on startup
+_chunks: List[Dict[str, str]] = []   # kept for API compat; no longer used for retrieval
 _cache_lock = threading.Lock()
 _client: Optional[OpenAI] = None
+_qdrant_client: Optional[QdrantClient] = None
+_embed_model = None   # SentenceTransformer instance
+
+
+def _init_qdrant() -> None:
+    """Connect to Qdrant and load the embedding model. Safe to call multiple times."""
+    global _qdrant_client, _embed_model
+    try:
+        _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+        # Verify the collection exists
+        if not _qdrant_client.collection_exists(QDRANT_COLLECTION):
+            print(f"[qdrant] WARNING: collection '{QDRANT_COLLECTION}' not found. "
+                  f"Run qdrant_setup.py first.")
+        else:
+            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
+            print(f"[qdrant] Connected. Collection '{QDRANT_COLLECTION}' has "
+                  f"{info.points_count} points.")
+    except Exception as e:
+        print(f"[qdrant] Connection failed: {e}")
+        _qdrant_client = None
+
+    try:
+        print(f"[qdrant] Loading embedding model '{EMBED_MODEL}'...")
+        _embed_model = SentenceTransformer(EMBED_MODEL)
+        print(f"[qdrant] Embedding model ready.")
+    except Exception as e:
+        print(f"[qdrant] Failed to load embedding model: {e}")
+        _embed_model = None
 
 
 def _init_client() -> OpenAI:
@@ -595,12 +529,12 @@ def _init_client() -> OpenAI:
 
 
 def _load_sources() -> None:
-    global _chunks
-    pages = fetch_sources()
-    new_chunks = build_chunks(pages)
-    with _cache_lock:
-        _chunks = new_chunks
-    print(f"[startup] Loaded {len(_chunks)} chunks from {len(ALLOWED_URLS)} sources.")
+    """Re-initialises the Qdrant connection and embedding model.
+    The old URL-fetching/chunking is no longer used for retrieval,
+    but we keep this function wired to /refresh for forward compatibility
+    (e.g. if you want to re-run qdrant_setup.py and reconnect)."""
+    _init_qdrant()
+    print(f"[refresh] Qdrant connection refreshed.")
 
 
 @app.route("/health", methods=["GET"])
@@ -642,6 +576,7 @@ if __name__ == "__main__":
         raise RuntimeError("Set OPENAI_API_KEY environment variable before starting.")
 
     _client = _init_client()
-    _load_sources()                     # Warm cache on startup
+    _init_qdrant()       # Connect to Qdrant and load embedding model
+    _load_sources()      # Kept for /refresh compat
 
     app.run(host="0.0.0.0", port=5001, debug=False)
