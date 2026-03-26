@@ -54,7 +54,9 @@ function openChat() {
     }, 100);
 }
 
-/** Renders a temporary "connecting" bubble with an id so we can replace it. */
+/** Renders an animated "Attempting to connect" bubble with a cycling ... */
+let _connectingInterval = null;
+
 function showConnecting() {
     const cw = document.getElementById("message-container");
     if (!cw) return;
@@ -65,36 +67,43 @@ function showConnecting() {
 
     const bubble = document.createElement("div");
     bubble.className = "agent-bubble";
-    bubble.style.cssText = "opacity:0.6;font-style:italic;";
-    bubble.innerHTML = '<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">Connecting to server\u2026</p>';
+    bubble.style.cssText = "opacity:0.65;font-style:italic;";
+
+    const p = document.createElement("p");
+    p.id = "connecting-text";
+    p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
+    p.textContent = "Attempting to connect to server.";
+    bubble.appendChild(p);
 
     wrapper.appendChild(bubble);
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
+
+    // Cycle through . / .. / ... every 500 ms
+    let dots = 1;
+    _connectingInterval = setInterval(() => {
+        const el = document.getElementById("connecting-text");
+        if (!el) { clearInterval(_connectingInterval); return; }
+        dots = (dots % 3) + 1;
+        el.textContent = "Attempting to connect to server" + ".".repeat(dots);
+    }, 500);
 }
 
-/** Replaces the connecting bubble with the real welcome, or an error message. */
-function replaceConnecting(text, isError) {
+/** On success: remove the connecting bubble silently, then show the welcome.
+ *  On failure: remove the bubble and reset so the next open retries. */
+function replaceConnecting(isError) {
+    clearInterval(_connectingInterval);
+    _connectingInterval = null;
+
     const wrapper = document.getElementById("connecting-wrapper");
     if (wrapper) wrapper.remove();
 
-    if (isError) {
-        // Display inline without adding to history so it doesn't confuse the model
-        const cw = document.getElementById("message-container");
-        if (!cw) return;
-        const w = document.createElement("div");
-        w.className = "agent-msg-wrapper";
-        const b = document.createElement("div");
-        b.className = "agent-bubble";
-        b.style.cssText = "color:#ef4444;font-style:italic;opacity:0.85;";
-        b.innerHTML = '<p style="color:#ef4444;margin:0;padding:0;font-size:1rem;line-height:1.5;">' + text + "</p>";
-        w.appendChild(b);
-        cw.appendChild(w);
-        cw.scrollTop = cw.scrollHeight;
-    } else {
+    if (!isError) {
         addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
     }
+    // On error we leave the chat empty — the status dot turns red and
+    // _welcomed resets so the next open tries again automatically.
 }
 
 function closeChat() {
@@ -125,14 +134,14 @@ async function checkStatusAndWelcome() {
         const ok = data.status === "ok" && data.python === "reachable";
         if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
         if (ok) {
-            replaceConnecting(WELCOME, false);
+            replaceConnecting(false);
         } else {
-            replaceConnecting("Could not reach the server. Please try again shortly.", true);
+            replaceConnecting(true);
             _welcomed = false; // allow retry on next open
         }
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
-        replaceConnecting("Could not reach the server. Please try again shortly.", true);
+        replaceConnecting(true);
         _welcomed = false; // allow retry on next open
     }
 }
