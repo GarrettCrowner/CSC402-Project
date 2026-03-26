@@ -88,6 +88,12 @@ function replaceConnecting(isError) {
     if (!isError) {
         addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
+        // Show topic quick-reply chips immediately so users can tap instead of type
+        renderQuickReplies(
+            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver"],
+            "What can I help you with today?",
+            WELCOME
+        );
     }
     // On error we leave the chat empty — the status dot turns red and
     // _welcomed resets so the next open tries again automatically.
@@ -196,8 +202,8 @@ function parseReply(text) {
     }
 
     // 2. Extract a trailing follow-up question (last sentence ending with ?)
-    // Requires a prior sentence-ending punctuation so the entire text is never consumed.
-    const questionMatch = mainText.match(/(?:[.!?])\s+([A-Z][^.!?\n<]*\?)\s*$/);
+    // Must start after a block boundary (newline or end of a tag), not inside an <a>.
+    const questionMatch = mainText.match(/(?:>|\.|\n)\s*([A-Z][^<\n]*\?)\s*$/);
     if (questionMatch && !options.length) {
         const q = questionMatch[1].trim();
         if (q.split(" ").length >= 4) { // at least 4 words = real question
@@ -317,6 +323,7 @@ function displayMessage(role, text) {
             cw.appendChild(wrapper);
             // Render chips after the wrapper
             if (options.length) renderQuickReplies(options, followUp, mainText);
+            else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp, mainText);
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
@@ -371,6 +378,7 @@ function replaceLoadingBubble(text) {
 
     // Render chips after the loading bubble is replaced
     if (options.length) renderQuickReplies(options, followUp, mainText);
+    else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
 }
