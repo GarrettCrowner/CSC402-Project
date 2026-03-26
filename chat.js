@@ -36,63 +36,28 @@ let _welcomed = false;
 function openChat() {
     if (isOpen() || _closing) return;
 
-    // Show the container first so appended messages are visible
     forceShow();
     const btn = document.getElementById("chat-btn");
     if (btn) btn.style.display = "none";
 
     if (!_welcomed) {
         _welcomed = true;
-        checkStatusAndWelcome();
+        // Show the welcome message immediately — no connecting animation
+        addHistory("assistant", WELCOME);
+        displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added below
+        renderQuickReplies(
+            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver"],
+            "What can I help you with today?",
+            WELCOME
+        );
+        // Health check runs silently in the background — only updates the status dot
+        checkStatus();
     }
 
     setTimeout(() => {
         const input = document.getElementById("chat-user-input");
         if (input) input.focus();
     }, 100);
-}
-
-/** Renders an animated "Attempting to connect" bubble with a cycling ... */
-
-function showConnecting() {
-    const cw = document.getElementById("message-container");
-    if (!cw) return;
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "agent-msg-wrapper";
-    wrapper.id = "connecting-wrapper";
-
-    const bubble = document.createElement("div");
-    bubble.className = "agent-bubble";
-    bubble.style.cssText = "opacity:0.65;font-style:italic;";
-
-    const p = document.createElement("p");
-    p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
-    p.textContent = "Attempting to connect to server…";
-    bubble.appendChild(p);
-
-    wrapper.appendChild(bubble);
-    cw.appendChild(wrapper);
-    cw.scrollTop = cw.scrollHeight;
-}
-
-/** On success: remove the connecting bubble silently, then show the welcome.
- *  On failure: remove the bubble and reset so the next open retries. */
-function replaceConnecting(isError) {
-    const wrapper = document.getElementById("connecting-wrapper");
-    if (wrapper) wrapper.remove();
-
-    if (!isError) {
-        addHistory("assistant", WELCOME);
-        displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added manually below
-        renderQuickReplies(
-            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver"],
-            "What can I help you with today?",
-            WELCOME
-        );
-    }
-    // On error we leave the chat empty — the status dot turns red and
-    // _welcomed resets so the next open tries again automatically.
 }
 
 function closeChat() {
@@ -110,37 +75,6 @@ function closeChat() {
 window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
-
-/** Called on first open — checks health, and only shows the connecting bubble
- *  if the server takes longer than 400ms to respond (avoids flash on fast connections). */
-async function checkStatusAndWelcome() {
-    const dot = document.getElementById("status-dot");
-    let ok = false;
-
-    // Only reveal the connecting bubble if the check takes more than 400ms
-    const showTimer = setTimeout(() => showConnecting(), 400);
-
-    try {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
-        clearTimeout(t);
-        const data = await res.json();
-        ok = data.status === "ok" && data.python === "reachable";
-        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
-    } catch {
-        if (dot) dot.style.backgroundColor = "#ef4444";
-    }
-
-    clearTimeout(showTimer); // cancel bubble if we're already done
-
-    if (ok) {
-        replaceConnecting(false);
-    } else {
-        replaceConnecting(true);
-        _welcomed = false; // allow retry on next open
-    }
-}
 
 /** Periodic background ping — only updates the dot, no UI messages. */
 async function checkStatus() {
