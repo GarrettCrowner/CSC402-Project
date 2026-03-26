@@ -95,6 +95,15 @@ IDENTITY_REPLY = (
 _GREETING_RE    = re.compile(r"^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b", re.IGNORECASE)
 _HOW_ARE_YOU_RE = re.compile(r"^\s*(how\s+are\s+you|hru|how's\s+it\s+going)\b", re.IGNORECASE)
 _GOODBYE_RE     = re.compile(r"^\s*(bye|goodbye|see\s+ya|later|take\s+care)\b", re.IGNORECASE)
+
+# Short affirmative/continuation replies that need context from history
+_AFFIRMATIVE_RE = re.compile(
+    r"^\s*(yes|yeah|yep|yup|sure|ok|okay|please|yes please|yes,?\s*please"
+    r"|go ahead|tell me more|more detail|more info|that one"
+    r"|sounds good|absolutely|definitely|of course|please do"
+    r"|no|nope|no thanks|not right now|that.?s all|never mind|i.?m good)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
 _WHO_ARE_YOU_RE = re.compile(
     r"^\s*(who are you|what are you|who is rammy|what is rammy"
     r"|what model are you|what ai are you|are you (an? )?ai"
@@ -120,6 +129,7 @@ def small_talk_kind(text: str) -> Optional[str]:
     if _GOODBYE_RE.search(t):     return "goodbye"
     if _WHO_ARE_YOU_RE.search(t): return "identity"
     if _META_RE.search(t):        return "meta"
+    if _AFFIRMATIVE_RE.match(t):  return "affirmative"
     return None
 
 
@@ -483,6 +493,36 @@ def ask_model(
 
     if kind == "meta":
         return META_REPLY
+
+    if kind == "affirmative":
+        # Re-surface the last assistant turn as the search query so the model
+        # has topic context rather than searching cold on "yes please".
+        last_assistant = next(
+            (m["content"] for m in reversed(history) if m.get("role") == "assistant"),
+            None,
+        )
+        if last_assistant:
+            # Use the last assistant reply as the retrieval query
+            context = build_context(last_assistant[:300], chunks)
+            if context:
+                system_prompt = build_hr_instructions(context)
+                trimmed_history = history[-4:] if history else []
+                messages = (
+                    [{"role": "system", "content": system_prompt}]
+                    + trimmed_history
+                    + [{"role": "user", "content": question}]
+                )
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    max_tokens=300,
+                    temperature=0.3,
+                )
+                answer = response.choices[0].message.content.strip()
+                if answer and "OUTOFSCOPE" not in answer:
+                    return answer
+        # No history or no context found — treat as small talk
+        kind = "greeting"
 
     if kind:
         system_prompt = build_smalltalk_prompt(question)
