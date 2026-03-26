@@ -205,19 +205,13 @@ function renderQuickReplies(chips, followUpText, botContext) {
             btn.style.color = "#6e3061";
         });
         btn.addEventListener("click", () => {
-            clearQuickReplies();
-            const input = document.getElementById("chat-user-input");
-            if (input) {
-                // Build a contextual message so the backend understands what the
-                // chip is responding to, rather than sending a bare label like
-                // "Yes, please!" with no surrounding context.
-                const context = followUpText || botContext || "";
-                const contextualMessage = context
-                    ? `${chipText} (regarding: "${context.slice(0, 120)}")`
-                    : chipText;
-                input.value = contextualMessage;
-                handleChat();
-            }
+            // displayText = the chip label shown in the user bubble
+            // apiText     = enriched with context so the backend understands the reply
+            const context = followUpText || botContext || "";
+            const apiText = context
+                ? `${chipText} (regarding: "${context.slice(0, 120)}")`
+                : chipText;
+            handleChat(chipText, apiText);
         });
         row.appendChild(btn);
     });
@@ -332,27 +326,32 @@ async function fetchReply(message) {
     return (await res.json()).reply;
 }
 
-async function handleChat() {
+async function handleChat(displayText, apiText) {
     const input = document.getElementById("chat-user-input");
     if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
+
+    // displayText = what shows in the bubble (chip label, or raw input)
+    // apiText     = what gets sent to the API (may include hidden context)
+    const visibleText = displayText || input.value.trim();
+    const sendText    = apiText    || visibleText;
+
+    if (!visibleText) return;
     input.value = "";
 
-    if (text.toLowerCase() === "/refresh") {
+    if (sendText.toLowerCase() === "/refresh") {
         try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Sources are refreshing!"); }
         catch { displayMessage("Agent", "Could not reach the server."); }
         return;
     }
 
     clearQuickReplies();
-    displayMessage("You", text);
-    addHistory("user", text);
+    displayMessage("You", visibleText);   // show only the friendly label
+    addHistory("user", sendText);          // store full context in history
     displayMessage("Typing", "");
     setInputEnabled(false);
 
     try {
-        const reply = await fetchReply(text);
+        const reply = await fetchReply(sendText);
         replaceLoadingBubble(reply);
         addHistory("assistant", reply);
     } catch {
@@ -439,7 +438,6 @@ window.addEventListener("load", () => {
     const form = document.getElementById("chat-user-form");
     if (form) form.addEventListener("submit", (e) => { e.preventDefault(); handleChat(); });
 
-    addHistory("assistant", WELCOME);
     checkStatus();
     setInterval(checkStatus, 30000);
 });
