@@ -107,6 +107,118 @@ function sanitizeHtml(str) {
     return s.replace(/\x00A(\d+)\x00/g, (_, i) => anchors[+i]);
 }
 
+// ─── Quick-Reply Chip Parsing ─────────────────────────────────────────────────
+/**
+ * Parses a bot reply for:
+ *   1. [OPTIONS: Label A | Label B | Label C]  → chip buttons
+ *   2. A trailing question sentence              → "continue?" chip + question text
+ *
+ * Returns { mainText, options: string[], followUp: string|null }
+ */
+function parseReply(text) {
+    let mainText = text;
+    let options = [];
+    let followUp = null;
+
+    // 1. Extract [OPTIONS: ...] block (may be anywhere in the text)
+    const optionsMatch = mainText.match(/\[OPTIONS:\s*([^\]]+)\]/i);
+    if (optionsMatch) {
+        options = optionsMatch[1].split("|").map(s => s.trim()).filter(Boolean);
+        mainText = mainText.replace(optionsMatch[0], "").trim();
+    }
+
+    // 2. Extract a trailing follow-up question (last sentence ending with ?)
+    // Must be after any link tags, and not inside an <a> tag
+    const questionMatch = mainText.match(/([^.!?\n<][^<\n]*\?)\s*$/);
+    if (questionMatch && !options.length) {
+        // Only treat as follow-up chip if it's a standalone question sentence
+        const q = questionMatch[1].trim();
+        if (q.split(" ").length >= 4) { // at least 4 words = real question
+            followUp = q;
+            mainText = mainText.slice(0, mainText.lastIndexOf(q)).trim();
+        }
+    }
+
+    return { mainText: mainText.trim(), options, followUp };
+}
+
+/**
+ * Removes all existing quick-reply chip rows from the message container.
+ * Called whenever the user submits a new message so old chips disappear.
+ */
+function clearQuickReplies() {
+    const cw = document.getElementById("message-container");
+    if (!cw) return;
+    cw.querySelectorAll(".quick-reply-row").forEach(el => el.remove());
+}
+
+/**
+ * Renders a row of quick-reply chip buttons below the last agent message.
+ * Clicking a chip fills the input and submits it.
+ */
+function renderQuickReplies(chips, followUpText) {
+    const cw = document.getElementById("message-container");
+    if (!cw || !chips.length) return;
+
+    const row = document.createElement("div");
+    row.className = "quick-reply-row";
+    row.style.cssText = [
+        "display:flex",
+        "flex-wrap:wrap",
+        "gap:0.4rem",
+        "padding:0.25rem 0.25rem 0.5rem 0.25rem",
+        "align-self:flex-start",
+        "max-width:95%",
+    ].join(";") + ";";
+
+    // Optional: show follow-up question text as a small label above chips
+    if (followUpText) {
+        const label = document.createElement("div");
+        label.style.cssText = "width:100%;font-size:0.72rem;color:#6b7280;font-family:sans-serif;font-style:italic;margin-bottom:0.15rem;padding:0 0.1rem;";
+        label.textContent = followUpText;
+        row.appendChild(label);
+    }
+
+    chips.forEach(chipText => {
+        const btn = document.createElement("button");
+        btn.className = "quick-reply-chip";
+        btn.textContent = chipText;
+        btn.style.cssText = [
+            "background:white",
+            "border:1.5px solid #6e3061",
+            "border-radius:1rem",
+            "padding:0.35rem 0.75rem",
+            "font-size:0.8rem",
+            "font-family:var(--cb-font-sans,sans-serif)",
+            "color:#6e3061",
+            "cursor:pointer",
+            "transition:background 0.15s,color 0.15s",
+            "white-space:nowrap",
+        ].join(";") + ";";
+
+        btn.addEventListener("mouseenter", () => {
+            btn.style.background = "#6e3061";
+            btn.style.color = "white";
+        });
+        btn.addEventListener("mouseleave", () => {
+            btn.style.background = "white";
+            btn.style.color = "#6e3061";
+        });
+        btn.addEventListener("click", () => {
+            clearQuickReplies();
+            const input = document.getElementById("chat-user-input");
+            if (input) {
+                input.value = chipText;
+                handleChat();
+            }
+        });
+        row.appendChild(btn);
+    });
+
+    cw.appendChild(row);
+    cw.scrollTop = cw.scrollHeight;
+}
+
 // ─── Display ──────────────────────────────────────────────────────────────────
 function displayMessage(role, text) {
     const cw = document.getElementById("message-container");
@@ -122,7 +234,27 @@ function displayMessage(role, text) {
         bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
     } else {
         bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
-        bubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+        // For agent messages, parse out options/follow-ups before displaying
+        if (role !== "You") {
+            const { mainText, options, followUp } = parseReply(text);
+            bubble.innerHTML = `<p>${sanitizeHtml(mainText)}</p>`;
+            wrapper.appendChild(bubble);
+            const meta = document.createElement("div");
+            meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
+            const name = document.createElement("span"); name.className = "profile-name"; name.textContent = "Rammy";
+            const ts = document.createElement("span"); ts.textContent = getTimestamp();
+            ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
+            meta.appendChild(name); meta.appendChild(ts);
+            wrapper.appendChild(meta);
+            cw.appendChild(wrapper);
+            // Render chips after the wrapper
+            if (options.length) renderQuickReplies(options, followUp);
+            else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp);
+            cw.scrollTop = cw.scrollHeight;
+            return;
+        } else {
+            bubble.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+        }
     }
     wrapper.appendChild(bubble);
 
@@ -148,9 +280,14 @@ function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
     const parent = loader.parentElement;
+    const cw = document.getElementById("message-container");
+
+    const { mainText, options, followUp } = parseReply(text);
+
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p>${sanitizeHtml(text)}</p>`;
+    loader.innerHTML = `<p>${sanitizeHtml(mainText)}</p>`;
+
     const meta = document.createElement("div");
     meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
     const name = document.createElement("span");
@@ -162,7 +299,14 @@ function replaceLoadingBubble(text) {
     meta.appendChild(name);
     meta.appendChild(ts);
     parent.appendChild(meta);
-    document.getElementById("message-container").scrollTop = 99999;
+
+    if (cw) cw.scrollTop = 99999;
+
+    // Render chips after the loading bubble is replaced
+    if (options.length) renderQuickReplies(options, followUp);
+    else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp);
+
+    if (cw) cw.scrollTop = 99999;
 }
 
 function setInputEnabled(on) {
@@ -196,6 +340,7 @@ async function handleChat() {
         return;
     }
 
+    clearQuickReplies();
     displayMessage("You", text);
     addHistory("user", text);
     displayMessage("Typing", "");
