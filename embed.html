@@ -18,7 +18,7 @@
       <link rel="canonical" href="https://www.wcupa.edu/hr/professional-development.aspx">
       <link rel="stylesheet" href="https://wcupa.edu/_resources/css/oustyles.css">
       <!-- Chatbot -->
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
       <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
       <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
       <link rel="stylesheet" href="styling.css">
@@ -217,58 +217,31 @@
   </footer>
 </div>
 
-<!-- ═══ CHATBOT ═══════════════════════════════════════════════════════════════ -->
-<button id="chat-btn" aria-label="Open Ask Rammy chatbot">
-  <span class="cb-btn-dot" aria-hidden="true"></span>
+<!-- CHATBOT -->
+<button id="chat-btn">
+  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="30" viewBox="0 0 24 24" fill="white" style="flex-shrink:0;">
+    <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H6l-2 2V4h16v10z"/>
+  </svg>
   Questions? Ask Rammy
 </button>
 
-<div id="chat-container" role="dialog" aria-modal="true" aria-label="Ask Rammy HR Chatbot" style="display:none!important;">
-
+<div id="chat-container" style="display:none!important;">
   <div id="chat-header">
-    <div id="chat-header-top">
-      <div id="chat-header-identity">
-        <div id="chat-avatar" aria-hidden="true">R</div>
-        <div id="chat-header-text">
-          <div id="chat-header-name">Ask Rammy</div>
-          <div id="chat-header-subtitle">
-            <span id="status-dot" title="Checking status…"></span>
-            WCU Human Resources
-          </div>
-        </div>
-      </div>
-      <div id="chat-header-actions">
-        <button id="chat-options-btn" aria-label="Chat options">
-          <ion-icon name="ellipsis-vertical-outline"></ion-icon>
-        </button>
-        <button id="chat-close-btn" aria-label="Close chat">
-          <ion-icon name="close-outline"></ion-icon>
-        </button>
-      </div>
+    <button id="chat-close-btn" style="font-size:1.4rem;line-height:1;">&#x2715;</button>
+    <div style="display:flex;align-items:center;gap:0.5rem;font-size:1.15em;">
+      Ask Rammy
+      <span id="status-dot" title="Checking..." style="width:10px;height:10px;border-radius:50%;background-color:#9ca3af;display:inline-block;flex-shrink:0;transition:background-color 0.4s ease;"></span>
     </div>
-    <div id="chat-suggestions" aria-label="Suggested questions"></div>
+    <button id="chat-options-btn"><ion-icon name="ellipsis-vertical-circle-outline"></ion-icon></button>
   </div>
-
-  <div id="message-container" role="log" aria-live="polite" aria-label="Chat messages"></div>
-
+  <div id="message-container"></div>
   <div id="chat-footer">
-    <form id="chat-user-form" autocomplete="off">
-      <input
-        type="text"
-        id="chat-user-input"
-        placeholder="Ask a question…"
-        aria-label="Type your HR question"
-        required
-        maxlength="500"
-      >
-      <button type="submit" id="send-btn" aria-label="Send message">
-        <ion-icon name="arrow-up-outline"></ion-icon>
-      </button>
+    <form id="chat-user-form">
+      <input type="text" id="chat-user-input" placeholder="Ask a question..." required>
+      <button type="submit" id="send-btn"><ion-icon name="send"></ion-icon></button>
     </form>
   </div>
-
 </div>
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 
 <script src="chat.js"></script>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
