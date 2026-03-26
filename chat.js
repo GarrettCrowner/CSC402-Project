@@ -44,7 +44,9 @@ function openChat() {
     if (!_welcomed) {
         _welcomed = true;
         showConnecting();
-        checkStatusAndWelcome(); // fires async in background, resolves into replaceConnecting
+        // checkStatusAndWelcome handles its own minimum display time internally
+        // and calls replaceConnecting when ready — fire and forget here.
+        checkStatusAndWelcome();
     }
 
     setTimeout(() => {
@@ -54,7 +56,6 @@ function openChat() {
 }
 
 /** Renders an animated "Attempting to connect" bubble with a cycling ... */
-let _connectingInterval = null;
 let _connectingShownAt = 0;
 
 function showConnecting() {
@@ -70,32 +71,19 @@ function showConnecting() {
     bubble.style.cssText = "opacity:0.65;font-style:italic;";
 
     const p = document.createElement("p");
-    p.id = "connecting-text";
     p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
-    p.textContent = "Attempting to connect to server.";
+    p.textContent = "Attempting to connect to server…";
     bubble.appendChild(p);
 
     wrapper.appendChild(bubble);
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
-
-    // Cycle through . / .. / ... every 500 ms
-    let dots = 1;
     _connectingShownAt = Date.now();
-    _connectingInterval = setInterval(() => {
-        const el = document.getElementById("connecting-text");
-        if (!el) { clearInterval(_connectingInterval); return; }
-        dots = (dots % 3) + 1;
-        el.textContent = "Attempting to connect to server" + ".".repeat(dots);
-    }, 500);
 }
 
 /** On success: remove the connecting bubble silently, then show the welcome.
  *  On failure: remove the bubble and reset so the next open retries. */
 function replaceConnecting(isError) {
-    clearInterval(_connectingInterval);
-    _connectingInterval = null;
-
     const wrapper = document.getElementById("connecting-wrapper");
     if (wrapper) wrapper.remove();
 
