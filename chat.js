@@ -33,7 +33,7 @@ function forceShow() {
 // ─── Open / Close ─────────────────────────────────────────────────────────────
 let _welcomed = false;
 
-function openChat() {
+async function openChat() {
     if (isOpen() || _closing) return;
 
     // Show the container first so appended messages are visible
@@ -43,9 +43,19 @@ function openChat() {
 
     if (!_welcomed) {
         _welcomed = true;
-        // Show a "connecting" placeholder, then swap for welcome once health is confirmed
+        // Show connecting bubble, then wait at least 1.5s before swapping so
+        // the animation is always visible even if the server responds instantly.
         showConnecting();
-        checkStatusAndWelcome();
+        const [ok] = await Promise.all([
+            checkStatusAndWelcome(),
+            new Promise(resolve => setTimeout(resolve, 1500))
+        ]);
+        if (ok) {
+            replaceConnecting(false);
+        } else {
+            replaceConnecting(true);
+            _welcomed = false; // allow retry on next open
+        }
     }
 
     setTimeout(() => {
@@ -122,7 +132,7 @@ window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 
-/** Called on first open — checks health then swaps the connecting bubble. */
+/** Called on first open — checks health and returns true if server is up. */
 async function checkStatusAndWelcome() {
     const dot = document.getElementById("status-dot");
     try {
@@ -133,16 +143,10 @@ async function checkStatusAndWelcome() {
         const data = await res.json();
         const ok = data.status === "ok" && data.python === "reachable";
         if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
-        if (ok) {
-            replaceConnecting(false);
-        } else {
-            replaceConnecting(true);
-            _welcomed = false; // allow retry on next open
-        }
+        return ok;
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
-        replaceConnecting(true);
-        _welcomed = false; // allow retry on next open
+        return false;
     }
 }
 
