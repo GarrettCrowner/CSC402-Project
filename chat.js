@@ -156,7 +156,7 @@ function clearQuickReplies() {
  * Renders a row of quick-reply chip buttons below the last agent message.
  * Clicking a chip fills the input and submits it.
  */
-function renderQuickReplies(chips, followUpText) {
+function renderQuickReplies(chips, followUpText, botContext) {
     const cw = document.getElementById("message-container");
     if (!cw || !chips.length) return;
 
@@ -208,7 +208,14 @@ function renderQuickReplies(chips, followUpText) {
             clearQuickReplies();
             const input = document.getElementById("chat-user-input");
             if (input) {
-                input.value = chipText;
+                // Build a contextual message so the backend understands what the
+                // chip is responding to, rather than sending a bare label like
+                // "Yes, please!" with no surrounding context.
+                const context = followUpText || botContext || "";
+                const contextualMessage = context
+                    ? `${chipText} (regarding: "${context.slice(0, 120)}")`
+                    : chipText;
+                input.value = contextualMessage;
                 handleChat();
             }
         });
@@ -248,8 +255,7 @@ function displayMessage(role, text) {
             wrapper.appendChild(meta);
             cw.appendChild(wrapper);
             // Render chips after the wrapper
-            if (options.length) renderQuickReplies(options, followUp);
-            else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp);
+            if (options.length) renderQuickReplies(options, followUp, mainText);
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
@@ -303,8 +309,7 @@ function replaceLoadingBubble(text) {
     if (cw) cw.scrollTop = 99999;
 
     // Render chips after the loading bubble is replaced
-    if (options.length) renderQuickReplies(options, followUp);
-    else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp);
+    if (options.length) renderQuickReplies(options, followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
 }
