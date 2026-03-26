@@ -60,8 +60,10 @@ Open Docker Desktop and wait for the whale icon in your menu bar to stop animati
 
 **First time (or after any code changes):**
 ```bash
-docker-compose up --build
-```
+docker-compose up --build        # starts qdrant + python + node
+python qdrant_setup.py           # populate the vector DB (run once locally)
+# — or inside the container:
+docker exec rammy-python python qdrant_setup.py```
 
 **Every time after:**
 ```bash
