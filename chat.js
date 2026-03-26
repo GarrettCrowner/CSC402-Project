@@ -43,9 +43,6 @@ function openChat() {
 
     if (!_welcomed) {
         _welcomed = true;
-        showConnecting();
-        // checkStatusAndWelcome handles its own minimum display time internally
-        // and calls replaceConnecting when ready — fire and forget here.
         checkStatusAndWelcome();
     }
 
@@ -87,8 +84,7 @@ function replaceConnecting(isError) {
 
     if (!isError) {
         addHistory("assistant", WELCOME);
-        displayMessage("Agent", WELCOME);
-        // Show topic quick-reply chips immediately so users can tap instead of type
+        displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added manually below
         renderQuickReplies(
             ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver"],
             "What can I help you with today?",
@@ -115,10 +111,15 @@ window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 
-/** Called on first open — checks health, waits for min display time, then swaps bubble. */
+/** Called on first open — checks health, and only shows the connecting bubble
+ *  if the server takes longer than 400ms to respond (avoids flash on fast connections). */
 async function checkStatusAndWelcome() {
     const dot = document.getElementById("status-dot");
     let ok = false;
+
+    // Only reveal the connecting bubble if the check takes more than 400ms
+    const showTimer = setTimeout(() => showConnecting(), 400);
+
     try {
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), 5000);
@@ -130,6 +131,8 @@ async function checkStatusAndWelcome() {
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
     }
+
+    clearTimeout(showTimer); // cancel bubble if we're already done
 
     if (ok) {
         replaceConnecting(false);
@@ -202,8 +205,8 @@ function parseReply(text) {
     }
 
     // 2. Extract a trailing follow-up question (last sentence ending with ?)
-    // Must start after a block boundary (newline or end of a tag), not inside an <a>.
-    const questionMatch = mainText.match(/(?:>|\.|\n)\s*([A-Z][^<\n]*\?)\s*$/);
+    // Requires a prior sentence-ending punctuation so the entire text is never consumed.
+    const questionMatch = mainText.match(/(?:[.!?])\s+([A-Z][^.!?\n<]*\?)\s*$/);
     if (questionMatch && !options.length) {
         const q = questionMatch[1].trim();
         if (q.split(" ").length >= 4) { // at least 4 words = real question
@@ -294,7 +297,7 @@ function renderQuickReplies(chips, followUpText, botContext) {
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────
-function displayMessage(role, text) {
+function displayMessage(role, text, skipChips = false) {
     const cw = document.getElementById("message-container");
     if (!cw) return;
 
@@ -309,7 +312,7 @@ function displayMessage(role, text) {
     } else {
         bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
         // For agent messages, parse out options/follow-ups before displaying
-        if (role !== "You") {
+        if (role !== "You" && !skipChips) {
             const { mainText, options, followUp } = parseReply(text);
             bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
             wrapper.appendChild(bubble);
@@ -458,7 +461,7 @@ function createDropdown() {
             history = [];
             _welcomed = false;
             addHistory("assistant", WELCOME);
-            displayMessage("Agent", WELCOME);
+            displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added manually below
             _welcomed = true;
         }},
         { icon: "🔄", label: "Refresh HR sources", fn: async () => {
