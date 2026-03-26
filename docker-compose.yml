@@ -1,13 +1,38 @@
 # ── Rammy HR Chatbot — Docker Compose ────────────────────────────────────────
-# Starts both the Python backend and Node.js server together.
+# Starts the Python backend, Node.js server, and Qdrant vector DB together.
 #
-# Usage:
-#   docker-compose up --build      ← first time or after code changes
-#   docker-compose up              ← subsequent runs
-#   docker-compose down            ← shut everything down
+# First-time setup:
+#   1. docker-compose up --build          ← build and start all services
+#   2. python qdrant_setup.py             ← populate the vector DB (run once)
+#
+# Every time after:
+#   docker-compose up
+#
+# Shut down:
+#   docker-compose down
+#
+# Wipe the vector DB and start fresh:
+#   docker-compose down -v
+#   python qdrant_setup.py
 
 
 services:
+
+  # ── Qdrant Vector Database ─────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rammy-qdrant
+    ports:
+      - "6333:6333"           # REST API (also used by qdrant_setup.py locally)
+      - "6334:6334"           # gRPC (optional)
+    volumes:
+      - qdrant_storage:/qdrant/storage   # persists vectors across restarts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Python Flask Backend ───────────────────────────────────────────────────
   python:
@@ -16,17 +41,23 @@ services:
       dockerfile: Dockerfile.python
     container_name: rammy-python
     env_file:
-      - .env                        # Loads your OPENAI_API_KEY securely
+      - .env                        # Loads OPENAI_API_KEY securely
     environment:
       - FLASK_ENV=production
+      - QDRANT_HOST=qdrant          # Docker internal hostname for Qdrant
+      - QDRANT_PORT=6333
     ports:
-      - "5001:5001"                 # Expose for local testing only
+      - "5001:5001"
+    depends_on:
+      qdrant:
+        condition: service_healthy  # Wait for Qdrant before starting Flask
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
+
   # ── Node.js Express Server ─────────────────────────────────────────────────
   node:
     build:
@@ -35,14 +66,17 @@ services:
     container_name: rammy-node
     environment:
       - PORT=3000
-      - PYTHON_BASE_URL=http://python:5001   # Uses Docker's internal network
+      - PYTHON_BASE_URL=http://python:5001
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-*}
     ports:
-      - "3000:3000"                 # Exposed to the browser
+      - "3000:3000"
     depends_on:
       python:
-        condition: service_healthy  # Waits for Python to pass health check
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  qdrant_storage:   # named volume — survives docker-compose down
 
 networks:
   default:
