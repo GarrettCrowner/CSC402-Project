@@ -63,8 +63,6 @@ SOURCE_URLS = [
     "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
     # Workers Comp
     "https://www.wcupa.edu/hr/work-related-injuries.aspx",
-    "https://www.wcupa.edu/hr/benefits/workersCompAPSCUF.aspx",
-    "https://www.wcupa.edu/hr/benefits/workersCompAFSCME.aspx",
     # Tuition
     "https://www.wcupa.edu/hr/tuition-waiver.aspx",
     "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
@@ -170,8 +168,11 @@ def build_and_upload():
 
     # Always recreate the collection so a re-run gives a clean slate
     print(f"\nRecreating Qdrant collection '{COLLECTION}' (vector size: {vector_size})...")
-    if qdrant.collection_exists(COLLECTION):
+    try:
         qdrant.delete_collection(COLLECTION)
+        print(f"  Deleted existing collection '{COLLECTION}'.")
+    except Exception:
+        pass  # Collection didn't exist yet — that's fine
     qdrant.create_collection(
         collection_name=COLLECTION,
         vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
