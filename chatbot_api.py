@@ -68,6 +68,9 @@ ALLOWED_URLS = [
     "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
     # ── Holidays / Calendar ───────────────────────────────────────────────────
     "https://www.wcupa.edu/registrar/calendar/",
+    # ── Employment ───────────────────────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
+    "https://www.schooljobs.com/careers/wcupa",
 ]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
