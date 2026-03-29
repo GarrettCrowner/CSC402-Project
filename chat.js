@@ -46,7 +46,7 @@ function openChat() {
         addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added below
         renderQuickReplies(
-            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver"],
+            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver", "Employment"],
             "What can I help you with today?",
             WELCOME
         );
