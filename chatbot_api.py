@@ -57,8 +57,6 @@ ALLOWED_URLS = [
     "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
     # ── Workers Comp ──────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/work-related-injuries.aspx",
-    "https://www.wcupa.edu/hr/benefits/workersCompAPSCUF.aspx",
-    "https://www.wcupa.edu/hr/benefits/workersCompAFSCME.aspx",
     # ── Tuition ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/tuition-waiver.aspx",
     "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
@@ -253,12 +251,13 @@ def build_context(question: str, chunks: object = None) -> str:
 
     try:
         query_vector = _embed_model.encode(question).tolist()
-        results = _qdrant_client.search(
+        response = _qdrant_client.query_points(
             collection_name=QDRANT_COLLECTION,
-            query_vector=query_vector,
+            query=query_vector,
             limit=QDRANT_TOP_K,
             with_payload=True,
         )
+        results = response.points
     except Exception as e:
         print(f"[retrieval] Qdrant search error: {e}")
         return ""
@@ -496,13 +495,13 @@ def _init_qdrant() -> None:
     try:
         _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
         # Verify the collection exists
-        if not _qdrant_client.collection_exists(QDRANT_COLLECTION):
+        try:
+            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
+            count = getattr(info, 'points_count', None) or getattr(getattr(info, 'result', info), 'points_count', '?')
+            print(f"[qdrant] Connected. Collection '{QDRANT_COLLECTION}' has {count} points.")
+        except Exception:
             print(f"[qdrant] WARNING: collection '{QDRANT_COLLECTION}' not found. "
                   f"Run qdrant_setup.py first.")
-        else:
-            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
-            print(f"[qdrant] Connected. Collection '{QDRANT_COLLECTION}' has "
-                  f"{info.points_count} points.")
     except Exception as e:
         print(f"[qdrant] Connection failed: {e}")
         _qdrant_client = None
@@ -531,12 +530,13 @@ def _load_sources() -> None:
     global _qdrant_client
     try:
         _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
-        if not _qdrant_client.collection_exists(QDRANT_COLLECTION):
+        try:
+            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
+            count = getattr(info, 'points_count', None) or getattr(getattr(info, 'result', info), 'points_count', '?')
+            print(f"[refresh] Reconnected. Collection has {count} points.")
+        except Exception:
             print(f"[refresh] WARNING: collection '{QDRANT_COLLECTION}' still not found. "
                   f"Run qdrant_setup.py first.")
-        else:
-            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
-            print(f"[refresh] Reconnected. Collection has {info.points_count} points.")
     except Exception as e:
         print(f"[refresh] Qdrant reconnect failed: {e}")
         _qdrant_client = None
