@@ -526,12 +526,21 @@ def _init_client() -> OpenAI:
 
 
 def _load_sources() -> None:
-    """Re-initialises the Qdrant connection and embedding model.
-    The old URL-fetching/chunking is no longer used for retrieval,
-    but we keep this function wired to /refresh for forward compatibility
-    (e.g. if you want to re-run qdrant_setup.py and reconnect)."""
-    _init_qdrant()
-    print(f"[refresh] Qdrant connection refreshed.")
+    """Re-connects to Qdrant (e.g. after running qdrant_setup.py externally).
+    Does NOT reload the embedding model if already loaded — avoids triple-init."""
+    global _qdrant_client
+    try:
+        _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+        if not _qdrant_client.collection_exists(QDRANT_COLLECTION):
+            print(f"[refresh] WARNING: collection '{QDRANT_COLLECTION}' still not found. "
+                  f"Run qdrant_setup.py first.")
+        else:
+            info = _qdrant_client.get_collection(QDRANT_COLLECTION)
+            print(f"[refresh] Reconnected. Collection has {info.points_count} points.")
+    except Exception as e:
+        print(f"[refresh] Qdrant reconnect failed: {e}")
+        _qdrant_client = None
+    print("[refresh] Qdrant connection refreshed.")
 
 
 @app.route("/health", methods=["GET"])
@@ -574,6 +583,6 @@ if __name__ == "__main__":
 
     _client = _init_client()
     _init_qdrant()       # Connect to Qdrant and load embedding model
-    _load_sources()      # Kept for /refresh compat
+    _startup_done = True # Prevent before_request from running init a second time
 
     app.run(host="0.0.0.0", port=5001, debug=False)
