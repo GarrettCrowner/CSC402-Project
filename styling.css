@@ -253,3 +253,32 @@
   background-color: var(--cb-gray-100) !important;
   border-radius: 1rem !important;
 }
+
+/* ─── High Contrast Mode ────────────────────────────────────────────────────── */
+#chat-container[data-contrast="high"] #message-container {
+    background-color: #000000 !important;
+}
+#chat-container[data-contrast="high"] .agent-bubble {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #ffffff !important;
+}
+#chat-container[data-contrast="high"] .agent-bubble p {
+    color: #000000 !important;
+}
+#chat-container[data-contrast="high"] .user-bubble {
+    background: #FFE800 !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
+}
+#chat-container[data-contrast="high"] .user-bubble p {
+    color: #000000 !important;
+}
+#chat-container[data-contrast="high"] .profile-name {
+    color: #cccccc !important;
+}
+#chat-container[data-contrast="high"] .quick-reply-chip {
+    background: #000000 !important;
+    color: #FFE800 !important;
+    border-color: #FFE800 !important;
+}
