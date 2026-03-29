@@ -14,6 +14,50 @@ function addHistory(role, content) {
     if (history.length > 8) history = history.slice(-8);
 }
 
+// ─── Accessibility Settings ──────────────────────────────────────────────────
+const A11Y_KEY      = "rammy_a11y";
+const A11Y_DEFAULTS = { fontSize: "medium", contrast: "normal", width: "default" };
+const FONT_MAP  = { small: "0.85rem", medium: "1rem", large: "1.15rem", xlarge: "1.3rem" };
+const WIDTH_MAP = { narrow: "320px", default: "400px", wide: "520px" };
+
+function loadA11y() {
+    try { return Object.assign({}, A11Y_DEFAULTS, JSON.parse(localStorage.getItem(A11Y_KEY) || "{}")); }
+    catch { return Object.assign({}, A11Y_DEFAULTS); }
+}
+
+function saveA11y(s) {
+    try { localStorage.setItem(A11Y_KEY, JSON.stringify(s)); } catch {}
+}
+
+function applyA11y(s) {
+    const container = document.getElementById("chat-container");
+    const msgArea   = document.getElementById("message-container");
+    if (!container) return;
+
+    // Width
+    const w = WIDTH_MAP[s.width] || WIDTH_MAP.default;
+    container.style.setProperty("width", w, "important");
+
+    // Font size across all message bubbles
+    const fs = FONT_MAP[s.fontSize] || FONT_MAP.medium;
+    if (msgArea) {
+        msgArea.style.setProperty("font-size", fs, "important");
+        msgArea.querySelectorAll("p").forEach(p => p.style.setProperty("font-size", fs, "important"));
+    }
+
+    // Contrast
+    if (s.contrast === "high") {
+        container.setAttribute("data-contrast", "high");
+    } else {
+        container.removeAttribute("data-contrast");
+    }
+}
+
+// Apply saved settings on every page load
+(function() {
+    window.addEventListener("load", () => applyA11y(loadA11y()));
+})();
+
 // ─── DOM state helpers ────────────────────────────────────────────────────────
 function isOpen() {
     const c = document.getElementById("chat-container");
@@ -36,28 +80,61 @@ let _welcomed = false;
 function openChat() {
     if (isOpen() || _closing) return;
 
+    // Show the container first so appended messages are visible
     forceShow();
     const btn = document.getElementById("chat-btn");
     if (btn) btn.style.display = "none";
 
     if (!_welcomed) {
         _welcomed = true;
-        // Show the welcome message immediately — no connecting animation
-        addHistory("assistant", WELCOME);
-        displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added below
-        renderQuickReplies(
-            ["Benefits & insurance", "Retirement plans", "Payroll & pay stubs", "Leave & FMLA", "Parking permits", "Tuition waiver", "Employment"],
-            "What can I help you with today?",
-            WELCOME
-        );
-        // Health check runs silently in the background — only updates the status dot
-        checkStatus();
+        showConnecting();
+        // checkStatusAndWelcome handles its own minimum display time internally
+        // and calls replaceConnecting when ready — fire and forget here.
+        checkStatusAndWelcome();
     }
 
     setTimeout(() => {
         const input = document.getElementById("chat-user-input");
         if (input) input.focus();
     }, 100);
+}
+
+/** Renders an animated "Attempting to connect" bubble with a cycling ... */
+
+function showConnecting() {
+    const cw = document.getElementById("message-container");
+    if (!cw) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "agent-msg-wrapper";
+    wrapper.id = "connecting-wrapper";
+
+    const bubble = document.createElement("div");
+    bubble.className = "agent-bubble";
+    bubble.style.cssText = "opacity:0.65;font-style:italic;";
+
+    const p = document.createElement("p");
+    p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
+    p.textContent = "Attempting to connect to server…";
+    bubble.appendChild(p);
+
+    wrapper.appendChild(bubble);
+    cw.appendChild(wrapper);
+    cw.scrollTop = cw.scrollHeight;
+}
+
+/** On success: remove the connecting bubble silently, then show the welcome.
+ *  On failure: remove the bubble and reset so the next open retries. */
+function replaceConnecting(isError) {
+    const wrapper = document.getElementById("connecting-wrapper");
+    if (wrapper) wrapper.remove();
+
+    if (!isError) {
+        addHistory("assistant", WELCOME);
+        displayMessage("Agent", WELCOME);
+    }
+    // On error we leave the chat empty — the status dot turns red and
+    // _welcomed resets so the next open tries again automatically.
 }
 
 function closeChat() {
@@ -75,6 +152,30 @@ function closeChat() {
 window.restoreChat = function() {};
 
 // ─── Status Dot ───────────────────────────────────────────────────────────────
+
+/** Called on first open — checks health, waits for min display time, then swaps bubble. */
+async function checkStatusAndWelcome() {
+    const dot = document.getElementById("status-dot");
+    let ok = false;
+    try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(t);
+        const data = await res.json();
+        ok = data.status === "ok" && data.python === "reachable";
+        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
+    } catch {
+        if (dot) dot.style.backgroundColor = "#ef4444";
+    }
+
+    if (ok) {
+        replaceConnecting(false);
+    } else {
+        replaceConnecting(true);
+        _welcomed = false; // allow retry on next open
+    }
+}
 
 /** Periodic background ping — only updates the dot, no UI messages. */
 async function checkStatus() {
@@ -231,7 +332,7 @@ function renderQuickReplies(chips, followUpText, botContext) {
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────
-function displayMessage(role, text, skipChips = false) {
+function displayMessage(role, text) {
     const cw = document.getElementById("message-container");
     if (!cw) return;
 
@@ -246,7 +347,7 @@ function displayMessage(role, text, skipChips = false) {
     } else {
         bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
         // For agent messages, parse out options/follow-ups before displaying
-        if (role !== "You" && !skipChips) {
+        if (role !== "You") {
             const { mainText, options, followUp } = parseReply(text);
             bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
             wrapper.appendChild(bubble);
@@ -260,7 +361,6 @@ function displayMessage(role, text, skipChips = false) {
             cw.appendChild(wrapper);
             // Render chips after the wrapper
             if (options.length) renderQuickReplies(options, followUp, mainText);
-            else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp, mainText);
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
@@ -315,7 +415,6 @@ function replaceLoadingBubble(text) {
 
     // Render chips after the loading bubble is replaced
     if (options.length) renderQuickReplies(options, followUp, mainText);
-    else if (followUp) renderQuickReplies(["Yes, please!", "No thanks"], followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
 }
@@ -376,6 +475,118 @@ async function handleChat(displayText, apiText) {
 }
 
 // ─── Options Dropdown ─────────────────────────────────────────────────────────
+function openA11yPanel() {
+    // Remove any existing panel
+    const existing = document.getElementById("a11y-panel");
+    if (existing) { existing.remove(); return; }
+
+    const s = loadA11y();
+    const container = document.getElementById("chat-container");
+    if (!container) return;
+
+    const panel = document.createElement("div");
+    panel.id = "a11y-panel";
+    panel.style.cssText = [
+        "position:absolute!important",
+        "bottom:70px!important",
+        "right:12px!important",
+        "background:white!important",
+        "border-radius:0.75rem!important",
+        "box-shadow:0 8px 24px rgba(0,0,0,0.18)!important",
+        "z-index:99999!important",
+        "width:260px!important",
+        "padding:1rem!important",
+        "font-family:'Nunito',sans-serif!important",
+        "box-sizing:border-box!important",
+    ].join(";");
+
+    function row(labelText, controlHtml) {
+        return `<div style="margin-bottom:0.85rem;">
+            <div style="font-size:0.75rem;font-weight:700;color:#6e3061;text-transform:uppercase;
+                        letter-spacing:0.05em;margin-bottom:0.35rem;">${labelText}</div>
+            ${controlHtml}
+        </div>`;
+    }
+
+    function btnGroup(name, options, current) {
+        return options.map(([val, lbl]) => {
+            const active = val === current;
+            return `<button data-a11y="${name}" data-val="${val}"
+                style="padding:0.3rem 0.6rem;font-size:0.8rem;border-radius:0.4rem;cursor:pointer;
+                       margin-right:0.3rem;margin-bottom:0.3rem;border:1.5px solid #6e3061;
+                       background:${active ? "#6e3061" : "white"};
+                       color:${active ? "white" : "#6e3061"};
+                       font-family:'Nunito',sans-serif;">${lbl}</button>`;
+        }).join("");
+    }
+
+    panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
+            <span style="font-weight:700;font-size:0.95rem;color:#111827;">Accessibility</span>
+            <button id="a11y-close" style="background:none;border:none;cursor:pointer;font-size:1.1rem;
+                    color:#6b7280;padding:0;line-height:1;">&#x2715;</button>
+        </div>
+        ${row("Font size", btnGroup("fontSize",
+            [["small","Small"],["medium","Medium"],["large","Large"],["xlarge","X-Large"]], s.fontSize))}
+        ${row("Contrast", btnGroup("contrast",
+            [["normal","Normal"],["high","High contrast"]], s.contrast))}
+        ${row("Window width", btnGroup("width",
+            [["narrow","Narrow"],["default","Default"],["wide","Wide"]], s.width))}
+        <button id="a11y-reset" style="width:100%;padding:0.4rem;font-size:0.8rem;border-radius:0.4rem;
+                border:1px solid #d1d5db;background:white;color:#6b7280;cursor:pointer;
+                font-family:'Nunito',sans-serif;">Reset to defaults</button>
+    `;
+
+    // Position relative to the chat footer
+    const footer = document.getElementById("chat-footer");
+    if (footer) {
+        footer.style.position = "relative";
+        footer.appendChild(panel);
+    } else {
+        container.style.position = "relative";
+        container.appendChild(panel);
+    }
+
+    // Button group clicks
+    panel.querySelectorAll("button[data-a11y]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const key = btn.getAttribute("data-a11y");
+            const val = btn.getAttribute("data-val");
+            const updated = loadA11y();
+            updated[key] = val;
+            saveA11y(updated);
+            applyA11y(updated);
+            // Refresh active states
+            panel.querySelectorAll(`button[data-a11y="${key}"]`).forEach(b => {
+                const isActive = b.getAttribute("data-val") === val;
+                b.style.background = isActive ? "#6e3061" : "white";
+                b.style.color      = isActive ? "white"   : "#6e3061";
+            });
+        });
+    });
+
+    // Reset
+    panel.querySelector("#a11y-reset").addEventListener("click", () => {
+        saveA11y(Object.assign({}, A11Y_DEFAULTS));
+        applyA11y(Object.assign({}, A11Y_DEFAULTS));
+        panel.remove();
+        openA11yPanel();
+    });
+
+    // Close button
+    panel.querySelector("#a11y-close").addEventListener("click", () => panel.remove());
+
+    // Close on outside click
+    setTimeout(() => {
+        document.addEventListener("click", function h(e) {
+            if (!panel.contains(e.target)) {
+                panel.remove();
+                document.removeEventListener("click", h);
+            }
+        });
+    }, 50);
+}
+
 function createDropdown() {
     const existing = document.getElementById("options-dropdown");
     if (existing) { existing.remove(); return; }
@@ -395,7 +606,7 @@ function createDropdown() {
             history = [];
             _welcomed = false;
             addHistory("assistant", WELCOME);
-            displayMessage("Agent", WELCOME, true); // skipChips=true — topic chips added manually below
+            displayMessage("Agent", WELCOME);
             _welcomed = true;
         }},
         { icon: "🔄", label: "Refresh HR sources", fn: async () => {
@@ -405,6 +616,7 @@ function createDropdown() {
         { icon: "📧", label: "Contact HR", fn: () => {
             displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#4a1259;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#4a1259;">610-436-2800</a>.`);
         }},
+        { icon: "♿", label: "Accessibility", fn: () => openA11yPanel() },
     ];
 
     items.forEach(item => {
