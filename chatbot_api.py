@@ -467,30 +467,27 @@ def ask_model(
 
 app = Flask(__name__)
 
-# ── Initialise on module import (covers both direct run and flask/gunicorn) ───
-# Uses a flag so it only runs once even if the module is imported multiple times.
-_startup_done = False
-
-def _ensure_startup():
-    global _startup_done, _client
-    if _startup_done:
-        return
-    _startup_done = True
-    if not OPENAI_API_KEY:
-        print("[startup] WARNING: OPENAI_API_KEY not set.")
-    else:
-        _client = _init_client()
-    _init_qdrant()
-
-with app.app_context():
-    _ensure_startup()
-
 # Module-level state — initialised once on startup
 _chunks: List[Dict[str, str]] = []   # kept for API compat; no longer used for retrieval
 _cache_lock = threading.Lock()
 _client: Optional[OpenAI] = None
 _qdrant_client: Optional[QdrantClient] = None
 _embed_model = None   # SentenceTransformer instance
+_startup_done = False
+
+
+@app.before_request
+def _ensure_startup():
+    """Runs once on the first request — handles flask run / gunicorn startup."""
+    global _startup_done, _client
+    if _startup_done:
+        return
+    _startup_done = True
+    if OPENAI_API_KEY:
+        _client = _init_client()
+    else:
+        print("[startup] WARNING: OPENAI_API_KEY not set.")
+    _init_qdrant()
 
 
 def _init_qdrant() -> None:
