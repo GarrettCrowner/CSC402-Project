@@ -360,7 +360,7 @@ Do not answer non-HR questions beyond simple small talk.
 
 After your response, ask one short, natural question to invite them to share what HR topic they need help with.
 For greetings, offer 2-4 common topic options using this exact format on its own line:
-[OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver]
+[OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver | Employment]
 """.strip()
 
 # ─── Model Call ───────────────────────────────────────────────────────────────
