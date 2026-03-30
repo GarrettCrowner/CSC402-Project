@@ -287,6 +287,45 @@ def build_context(question: str, chunks: object = None) -> str:
     return "\n\n".join(parts) + f"\n\nAvailable source URLs:\n{source_list}"
 
 
+# ─── Link Sanitisation ───────────────────────────────────────────────────────
+
+def linkify_contacts(text: str) -> str:
+    """
+    Post-processing safety net: wraps any bare email addresses and phone numbers
+    that slipped through as plain text into proper HTML anchor tags.
+    Skips text that is already inside an <a> tag.
+    """
+    if not text:
+        return text
+
+    # Regex patterns as variables to avoid quoting issues
+    def _email_link(m):
+        # Skip if already inside an anchor tag
+        addr  = m.group(1)
+        start = max(0, m.start() - 30)
+        if "mailto:" in text[start:m.start()] or "href=" in text[start:m.start()]:
+            return m.group(0)
+        return f'<a href="mailto:{addr}">{addr}</a>'
+
+    def _phone_link(m):
+        raw    = m.group(1)
+        start  = max(0, m.start() - 20)
+        if "tel:" in text[start:m.start()] or "href=" in text[start:m.start()]:
+            return m.group(0)
+        digits = re.sub(r"[^0-9]", "", raw)
+        return f'<a href="tel:{digits}">{raw}</a>'
+
+    text = re.sub(
+        r'([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})',
+        _email_link, text
+    )
+    text = re.sub(
+        r'(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})',
+        _phone_link, text
+    )
+    return text
+
+
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
 def build_hr_instructions(context: str) -> str:
@@ -310,6 +349,9 @@ Rules:
 - Do not show raw URLs. Only use HTML anchor tags for links.
 - Do not use markdown formatting, headers, or bullet points.
 - Do not make up information not found in the context.
+- If you mention an email address, ALWAYS wrap it as: <a href="mailto:address">address</a>
+- If you mention a phone number, ALWAYS wrap it as: <a href="tel:digits">formatted number</a>
+  Example: <a href="tel:6104362800">610-436-2800</a>
 
 CONVERSATIONAL FOLLOW-UP RULES (very important):
 - After answering, ALWAYS ask one natural follow-up question to continue the conversation helpfully.
@@ -341,7 +383,9 @@ FMLA and leave, workers compensation, tuition waiver, I-9 documentation,
 employee relations, professional development, and the Employee Self-Service portal.
 
 Write a short, friendly 1-2 sentence decline in Rammy's voice. Be warm and helpful —
-suggest they contact HR directly at HRS@wcupa.edu or 610-436-2800 if it seems relevant.
+suggest they contact HR directly if it seems relevant — always formatted as HTML links:
+<a href="mailto:HRS@wcupa.edu">HRS@wcupa.edu</a> or <a href="tel:6104362800">610-436-2800</a>
+Do not show raw email addresses or phone numbers — always use HTML anchor tags.
 Do not use bullet points or markdown. Never say "I cannot answer that question" verbatim.
 Vary your response naturally — don't use the same phrasing every time.
 """.strip()
@@ -357,10 +401,12 @@ Do not use animal puns, rhymes, or wordplay.
 Do not reference cats, paws, or any animal other than rams.
 You are a ram — stay on brand.
 Do not answer non-HR questions beyond simple small talk.
+If you mention the HR email or phone number, always format them as HTML anchor tags:
+<a href="mailto:HRS@wcupa.edu">HRS@wcupa.edu</a> and <a href="tel:6104362800">610-436-2800</a>
 
 After your response, ask one short, natural question to invite them to share what HR topic they need help with.
 For greetings, offer 2-4 common topic options using this exact format on its own line:
-[OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver | Employment]
+[OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver]
 """.strip()
 
 # ─── Model Call ───────────────────────────────────────────────────────────────
@@ -431,7 +477,7 @@ def ask_model(
                 max_tokens=100,
                 temperature=0.8,  # Higher temp for natural variation
             )
-            return oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY
+            return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
 
         system_prompt = build_hr_instructions(context)
         trimmed_history = history[-4:] if history else []
@@ -450,6 +496,7 @@ def ask_model(
     )
 
     answer = response.choices[0].message.content.strip()
+    answer = linkify_contacts(answer)
 
     # If GPT returned the out-of-scope sentinel, generate a friendly decline
     if not answer or "OUTOFSCOPE" in answer:
@@ -460,7 +507,7 @@ def ask_model(
             max_tokens=100,
             temperature=0.8,
         )
-        return oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY
+        return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
 
     return answer
 
