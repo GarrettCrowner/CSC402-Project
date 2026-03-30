@@ -71,6 +71,15 @@ ALLOWED_URLS = [
     # ── Employment ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
     "https://www.schooljobs.com/careers/wcupa",
+    # ── External Retirement / Benefits providers ──────────────────────────────
+    # These are reference URLs — included so the model can cite them even if
+    # their content isn't fully scraped (many require authentication).
+    "https://www.tiaa.org/public/tcm/passhe/home",
+    "https://retirementatwork.org/wcupa/",
+    "https://sers.pa.gov/members/",
+    "https://www.psers.pa.gov/Members/Pages/default.aspx",
+    "https://www.empower.com/public/retirement",
+    "https://nb.fidelity.com/public/nb/default/home",
 ]
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
@@ -323,6 +332,20 @@ def linkify_contacts(text: str) -> str:
         r'(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})',
         _phone_link, text
     )
+
+    # Wrap bare URLs (www.example.com or https://example.com) not already in an anchor
+    def _url_link(m):
+        raw   = m.group(1)
+        start = max(0, m.start() - 20)
+        # Skip if already inside href= or src=
+        if "href=" in text[start:m.start()] or "src=" in text[start:m.start()]:
+            return m.group(0)
+        href = raw if raw.startswith("http") else "https://" + raw
+        return f'<a href="{href}" target="_blank" rel="noopener noreferrer">{raw}</a>'
+
+    # Store pattern as variable to avoid quoting issues with single quotes
+    URL_BARE = re.compile(r'(?<!["\'=])((?:https?://|www\.)[\w./\-?=&#%+@!:,]+)')
+    text = URL_BARE.sub(_url_link, text)
     return text
 
 
@@ -343,6 +366,9 @@ Rules:
   <a href="https://example.com">Visit the WCU Parking page for full details</a>
   <a href="https://example.com">Check out the PASSHE benefits page</a>
 - Only use URLs that appear in the "Available source URLs" list — never invent URLs.
+- When mentioning external provider websites (e.g. TIAA, Retirement@Work, SERS, PSERS, Empower, Fidelity),
+  always format them as HTML anchor links using the exact URL from the source list.
+  Example: <a href="https://retirementatwork.org/wcupa/">Retirement@Work</a>
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
 - If the question is not HR-related, respond with exactly the word: OUTOFSCOPE
 - Treat similar wording as the same intent (e.g. "change address" = "update address").
