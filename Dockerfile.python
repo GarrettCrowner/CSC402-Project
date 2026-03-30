@@ -3,6 +3,9 @@
 
 FROM python:3.11-slim
 
+# Install curl (needed for MinIO healthcheck in some environments)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 # Set working directory inside the container
 WORKDIR /app
 
@@ -10,12 +13,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy application code
 COPY chatbot_api.py .
 COPY qdrant_setup.py .
 
 # Expose the port Flask runs on
-EXPOSE 5000
+EXPOSE 5001
 
 # Start the Flask service
 CMD ["python", "chatbot_api.py"]
