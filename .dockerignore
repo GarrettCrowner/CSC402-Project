@@ -1,0 +1,61 @@
+# ── Rammy HR Chatbot — .dockerignore ─────────────────────────────────────────
+# Keeps the Docker build context lean by excluding files that don't belong
+# inside the container image.
+
+# Environment / secrets — never copy these into an image
+.env
+*.env
+.env.*
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node.js (not needed in the Python image)
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Test / dev files
+testing.py
+tempCodeRunnerFile.py
+
+# Frontend files (not needed in the Python image)
+embed.html
+styling.css
+chat.js
+
+# Docs
+README.md
+*.md
+parsing-database.md
+brand_guide.md
+
+# Local PDF uploads (PDFs go in MinIO, not the image)
+*.pdf
