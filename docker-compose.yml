@@ -1,9 +1,9 @@
 # ── Rammy HR Chatbot — Docker Compose ────────────────────────────────────────
-# Starts the Python backend, Node.js server, and Qdrant vector DB together.
+# Starts the Python backend, Node.js server, Qdrant vector DB, and MinIO storage.
 #
 # First-time setup:
-#   1. docker-compose up --build          ← build and start all services
-#   2. python qdrant_setup.py             ← populate the vector DB (run once)
+#   1. docker-compose up --build -d       ← build and start all services
+#   2. docker exec rammy-python python qdrant_setup.py  ← populate the vector DB
 #
 # Every time after:
 #   docker-compose up
@@ -11,22 +11,46 @@
 # Shut down:
 #   docker-compose down
 #
-# Wipe the vector DB and start fresh:
+# Wipe ALL persistent data and start completely fresh:
 #   docker-compose down -v
-#   python qdrant_setup.py
+#   docker-compose up --build -d
+#   docker exec rammy-python python qdrant_setup.py
 
 
 services:
+
+  # ── MinIO Object Storage ───────────────────────────────────────────────────
+  # Stores HR PDF documents. Upload PDFs via the web console at
+  # http://localhost:9001 (user: minioadmin / pass: minioadmin)
+  # then re-run qdrant_setup.py to index them.
+  minio:
+    image: minio/minio:latest
+    container_name: rammy-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASS:-minioadmin}
+    ports:
+      - "9000:9000"     # S3-compatible API
+      - "9001:9001"     # Web console
+    volumes:
+      - minio_storage:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Qdrant Vector Database ─────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:latest
     container_name: rammy-qdrant
     ports:
-      - "6333:6333"           # REST API (also used by qdrant_setup.py locally)
-      - "6334:6334"           # gRPC (optional)
+      - "6333:6333"     # REST API
+      - "6334:6334"     # gRPC (optional)
     volumes:
-      - qdrant_storage:/qdrant/storage   # persists vectors across restarts
+      - qdrant_storage:/qdrant/storage
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/6333"]
@@ -41,16 +65,22 @@ services:
       dockerfile: Dockerfile.python
     container_name: rammy-python
     env_file:
-      - .env                        # Loads OPENAI_API_KEY securely
+      - .env
     environment:
       - FLASK_ENV=production
-      - QDRANT_HOST=qdrant          # Docker internal hostname for Qdrant
+      - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - MINIO_HOST=minio:9000
+      - MINIO_USER=${MINIO_USER:-minioadmin}
+      - MINIO_PASS=${MINIO_PASS:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-documents}
     ports:
       - "5001:5001"
     depends_on:
       qdrant:
-        condition: service_healthy  # Wait for Qdrant before starting Flask
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
@@ -76,7 +106,8 @@ services:
     restart: unless-stopped
 
 volumes:
-  qdrant_storage:   # named volume — survives docker-compose down
+  qdrant_storage:   # Qdrant vectors — survives docker-compose down
+  minio_storage:    # HR PDF documents — survives docker-compose down
 
 networks:
   default:
