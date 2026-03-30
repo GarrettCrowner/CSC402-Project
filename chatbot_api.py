@@ -16,7 +16,9 @@ Changes vs original chatbot.py:
 
 import os
 import re
+import json
 import threading
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -81,6 +83,57 @@ ALLOWED_URLS = [
     "https://www.empower.com/public/retirement",
     "https://nb.fidelity.com/public/nb/default/home",
 ]
+
+# ─── Analytics Config ────────────────────────────────────────────────────────
+ANALYTICS_LOG = os.getenv("ANALYTICS_LOG", "/app/analytics.jsonl")
+_analytics_lock = threading.Lock()
+
+TOPIC_KEYWORDS: dict = {
+    "benefits":      ["benefit","health","dental","vision","insurance","coverage","medical"],
+    "retirement":    ["retire","403b","457","arp","sers","psers","tiaa","pension","deferred","tsa"],
+    "payroll":       ["payroll","pay","salary","direct deposit","w-2","w-4","pay stub","paycheck"],
+    "leave":         ["fmla","leave","sick","vacation","time off","absence","family"],
+    "parking":       ["park","permit","garage","e-permit","pass"],
+    "tuition":       ["tuition","waiver","reimburs","class","school","education"],
+    "workers_comp":  ["workers comp","injury","hurt","incident","accident","panel physician"],
+    "employment":    ["hire","job","opening","position","employ","onboard","i-9"],
+    "professional_development": ["training","linkedin","learning","development","workshop","fast"],
+    "i9":            ["i-9","i9","verification","document","eligible"],
+    "general_hr":    ["hr","human resources","contact","email","phone"],
+}
+
+def classify_topic(question: str) -> str:
+    q = question.lower()
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        if any(kw in q for kw in keywords):
+            return topic
+    return "other"
+
+def detect_source_type(reply: str) -> str:
+    """Detect whether the answer was sourced from a PDF or a web page."""
+    if "pdf:" in reply.lower():
+        return "pdf"
+    if "http" in reply:
+        return "web"
+    return "unknown"
+
+def log_interaction(question: str, reply: str, is_out_of_scope: bool) -> None:
+    """Append one JSONL record to the analytics log file."""
+    record = {
+        "ts":             datetime.now(timezone.utc).isoformat(),
+        "question":       question,
+        "topic":          classify_topic(question),
+        "out_of_scope":   is_out_of_scope,
+        "source_type":    detect_source_type(reply),
+        "reply_length":   len(reply),
+    }
+    try:
+        with _analytics_lock:
+            with open(ANALYTICS_LOG, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        print(f"[analytics] Log write failed: {e}")
+
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
 
@@ -642,6 +695,12 @@ def chat():
         print(f"[/chat] Error: {e}")
         return jsonify({"error": "Internal error — please try again."}), 500
 
+    is_oos = any(phrase in reply.lower() for phrase in [
+        "outside", "can't help with that", "not able to", "reach out to hr",
+        "hrs@wcupa", "contact hr", "610-436-2800"
+    ])
+    log_interaction(message, reply, is_oos)
+
     return jsonify({"reply": reply})
 
 
@@ -649,6 +708,65 @@ def chat():
 def refresh():
     threading.Thread(target=_load_sources, daemon=True).start()
     return jsonify({"message": "Source refresh started in background."})
+
+
+@app.route("/analytics", methods=["GET"])
+def analytics():
+    """
+    Returns analytics data from the JSONL log.
+    Query params:
+      ?limit=N   — return only the last N records (default 1000)
+    """
+    limit = int(request.args.get("limit", 1000))
+    records = []
+    try:
+        with _analytics_lock:
+            if os.path.exists(ANALYTICS_LOG):
+                with open(ANALYTICS_LOG, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                records.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    records = records[-limit:]
+
+    # ── Aggregate metrics ────────────────────────────────────────────────────
+    total = len(records)
+    oos_count = sum(1 for r in records if r.get("out_of_scope"))
+
+    topic_counts: dict = {}
+    source_counts: dict = {}
+    hourly_counts: dict = {}
+
+    for r in records:
+        topic = r.get("topic", "other")
+        topic_counts[topic] = topic_counts.get(topic, 0) + 1
+
+        src = r.get("source_type", "unknown")
+        source_counts[src] = source_counts.get(src, 0) + 1
+
+        ts = r.get("ts", "")
+        if ts:
+            try:
+                hour = ts[11:13]  # "HH" from ISO timestamp
+                hourly_counts[hour] = hourly_counts.get(hour, 0) + 1
+            except Exception:
+                pass
+
+    return jsonify({
+        "total_queries":    total,
+        "out_of_scope":     oos_count,
+        "oos_rate":         round(oos_count / total * 100, 1) if total else 0,
+        "topic_counts":     dict(sorted(topic_counts.items(), key=lambda x: -x[1])),
+        "source_counts":    source_counts,
+        "hourly_counts":    hourly_counts,
+        "recent":           list(reversed(records[-50:])),  # last 50, newest first
+    })
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
