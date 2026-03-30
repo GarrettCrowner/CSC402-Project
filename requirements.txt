@@ -5,9 +5,12 @@ requests>=2.32.3
 beautifulsoup4>=4.12.3
 python-dotenv>=1.0.1
 
-# Qdrant vector database integration
+# Qdrant vector database
 qdrant-client>=1.9.0
 sentence-transformers>=2.7.0
 
-# PDF ingestion (used by qdrant_setup.py — optional for URL-only deployments)
+# PDF ingestion
 pymupdf>=1.24.0
+
+# MinIO object storage
+minio>=7.2.0
