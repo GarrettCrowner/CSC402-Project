@@ -122,6 +122,25 @@ app.post("/api/chat", validateChatPayload, async (req, res) => {
 });
 
 /**
+ * GET /api/analytics
+ * Proxies analytics data from the Python service.
+ * Query params: ?limit=N
+ */
+app.get("/api/analytics", async (req, res) => {
+  const limit = req.query.limit || 1000;
+  try {
+    const response = await axios.get(
+      `${PYTHON_BASE_URL}/analytics?limit=${limit}`,
+      { timeout: 10000 }
+    );
+    return res.json(response.data);
+  } catch (err) {
+    console.error("[/api/analytics] Error:", err.message);
+    return res.status(503).json({ error: "Could not fetch analytics." });
+  }
+});
+
+/**
  * POST /api/refresh
  * Triggers a knowledge-base refresh on the Python service.
  * Returns: { message: string }
