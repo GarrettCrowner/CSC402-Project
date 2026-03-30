@@ -24,11 +24,27 @@ import re
 import os
 from typing import List, Dict
 
+import io
 import requests
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, Distance, VectorParams
+
+try:
+    import fitz  # PyMuPDF
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+    print("[setup] WARNING: pymupdf not installed — PDF ingestion disabled.")
+
+try:
+    from minio import Minio
+    from minio.error import S3Error
+    MINIO_AVAILABLE = True
+except ImportError:
+    MINIO_AVAILABLE = False
+    print("[setup] WARNING: minio not installed — PDF ingestion disabled.")
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +55,12 @@ EMBED_MODEL = "all-MiniLM-L6-v2"
 CHUNK_MAX_CHARS = 700   # characters per chunk (matches chatbot_api.py split_into_chunks)
 CHUNK_OVERLAP   = 150   # character overlap between chunks
 BATCH_SIZE      = 50    # upsert batch size
+
+# ─── MinIO Config ────────────────────────────────────────────────────────────
+MINIO_HOST   = os.getenv("MINIO_HOST",   "localhost:9000")
+MINIO_USER   = os.getenv("MINIO_USER",   "minioadmin")
+MINIO_PASS   = os.getenv("MINIO_PASS",   "minioadmin")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "documents")
 
 # Full URL list — keep in sync with chatbot_api.py ALLOWED_URLS
 SOURCE_URLS = [
@@ -90,6 +112,25 @@ def html_to_text(html: str) -> str:
     for tag in soup(["script", "style", "noscript", "svg", "header", "footer", "nav"]):
         tag.decompose()
     return normalize_text(soup.get_text("\n"))[:150_000]
+
+# ─── PDF Extraction ──────────────────────────────────────────────────────────
+
+def extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Extract and clean all text from a PDF byte string using PyMuPDF."""
+    if not PYMUPDF_AVAILABLE:
+        return ""
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        pages = []
+        for page in doc:
+            text = page.get_text()
+            if text.strip():
+                pages.append(normalize_text(text))
+        return " ".join(pages)
+    except Exception as e:
+        print(f"    [pdf] Extraction error: {e}")
+        return ""
+
 
 # ─── Chunking ─────────────────────────────────────────────────────────────────
 
@@ -148,6 +189,75 @@ def fetch_and_chunk_all() -> List[Dict[str, str]]:
 
     return all_chunks
 
+def fetch_and_chunk_pdfs() -> List[Dict[str, str]]:
+    """
+    Connects to MinIO, lists all PDFs in MINIO_BUCKET,
+    extracts text from each, and returns chunks ready for embedding.
+    Skips gracefully if MinIO or PyMuPDF are unavailable.
+    """
+    if not MINIO_AVAILABLE or not PYMUPDF_AVAILABLE:
+        print("  [minio] Skipping PDF ingestion — minio or pymupdf not available.")
+        return []
+
+    try:
+        client = Minio(MINIO_HOST, access_key=MINIO_USER, secret_key=MINIO_PASS, secure=False)
+    except Exception as e:
+        print(f"  [minio] Could not connect: {e}")
+        return []
+
+    # Create bucket if it doesn't exist yet
+    try:
+        if not client.bucket_exists(MINIO_BUCKET):
+            client.make_bucket(MINIO_BUCKET)
+            print(f"  [minio] Created bucket '{MINIO_BUCKET}' (empty — upload PDFs via http://localhost:9001).")
+            return []
+    except S3Error as e:
+        print(f"  [minio] Bucket check failed: {e}")
+        return []
+
+    all_chunks: List[Dict[str, str]] = []
+    pdf_count = 0
+
+    try:
+        objects = list(client.list_objects(MINIO_BUCKET))
+    except S3Error as e:
+        print(f"  [minio] Could not list objects: {e}")
+        return []
+
+    pdfs = [obj for obj in objects if obj.object_name.lower().endswith(".pdf")]
+
+    if not pdfs:
+        print(f"  [minio] Bucket '{MINIO_BUCKET}' exists but contains no PDFs.")
+        return []
+
+    for obj in pdfs:
+        name = obj.object_name
+        print(f"  Processing PDF: {name}...")
+        try:
+            response = client.get_object(MINIO_BUCKET, name)
+            pdf_bytes = response.read()
+            response.close()
+            response.release_conn()
+        except S3Error as e:
+            print(f"    ✗ Could not fetch '{name}': {e}")
+            continue
+
+        text = extract_pdf_text(pdf_bytes)
+        if not text.strip():
+            print(f"    ✗ No text extracted from '{name}' — skipping.")
+            continue
+
+        # Use a descriptive source label so the LLM can cite it
+        source_label = f"pdf:{name}"
+        chunks = split_into_chunks(text, source_label)
+        all_chunks.extend(chunks)
+        pdf_count += 1
+        print(f"    ✓ {len(chunks)} chunks from '{name}'")
+
+    print(f"  [minio] Processed {pdf_count} PDF(s) → {len(all_chunks)} chunks total.")
+    return all_chunks
+
+
 def build_and_upload():
     print(f"\n── Qdrant Setup: Rammy HR Chatbot ──")
     print(f"Connecting to Qdrant at {QDRANT_HOST}:{QDRANT_PORT}...")
@@ -156,9 +266,14 @@ def build_and_upload():
     print(f"Loading embedding model '{EMBED_MODEL}'...")
     model = SentenceTransformer(EMBED_MODEL)
 
-    print(f"\nFetching and chunking {len(SOURCE_URLS)} sources...")
+    print(f"\nFetching and chunking {len(SOURCE_URLS)} web sources...")
     chunks = fetch_and_chunk_all()
-    print(f"\nTotal chunks: {len(chunks)}")
+
+    print(f"\nFetching and chunking PDFs from MinIO...")
+    pdf_chunks = fetch_and_chunk_pdfs()
+    chunks.extend(pdf_chunks)
+
+    print(f"\nTotal chunks: {len(chunks)} ({len(chunks) - len(pdf_chunks)} web + {len(pdf_chunks)} PDF)")
 
     if not chunks:
         print("No chunks produced — aborting.")
