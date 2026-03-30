@@ -616,7 +616,7 @@ function createDropdown() {
         { icon: "📧", label: "Contact HR", fn: () => {
             displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#4a1259;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#4a1259;">610-436-2800</a>.`);
         }},
-        { icon: "♿", label: "Accessibility", fn: () => openA11yPanel() },
+        { icon: "⚙️", label: "Accessibility", fn: () => openA11yPanel() },
     ];
 
     items.forEach(item => {
