@@ -99,6 +99,14 @@ SOURCE_URLS = [
     # Employment
     "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
     "https://www.schooljobs.com/careers/wcupa",
+    # External Retirement / Benefits providers
+    # Included as reference URLs — content may be partial if sites require auth
+    "https://www.tiaa.org/public/tcm/passhe/home",
+    "https://retirementatwork.org/wcupa/",
+    "https://sers.pa.gov/members/",
+    "https://www.psers.pa.gov/Members/Pages/default.aspx",
+    "https://www.empower.com/public/retirement",
+    "https://nb.fidelity.com/public/nb/default/home",
 ]
 
 # ─── Text Utilities ───────────────────────────────────────────────────────────
