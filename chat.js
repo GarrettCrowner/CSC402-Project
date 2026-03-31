@@ -207,8 +207,11 @@ function getTimestamp() {
 function sanitizeHtml(str) {
     const anchors = [];
     let s = String(str);
+    // Preserve https:// links — add 📄 icon for PDF proxy links
     s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
-        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#4a1259;word-break:break-word;">${text}</a>`);
+        const isPdf = href.includes("/api/pdf/");
+        const label = isPdf ? `📄 ${text}` : text;
+        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#4a1259;word-break:break-word;">${label}</a>`);
         return `\x00A${anchors.length - 1}\x00`;
     });
     s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
