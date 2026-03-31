@@ -74,28 +74,6 @@ function validateChatPayload(req, res, next) {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 /**
- * GET /api/document/:filename
- * Proxies a PDF from the Python /document/ endpoint so the browser
- * only ever talks to port 3000 (no direct Flask exposure needed).
- */
-app.get("/api/document/:filename", async (req, res) => {
-  const { filename } = req.params;
-  try {
-    const response = await axios.get(
-      `${PYTHON_BASE_URL}/document/${encodeURIComponent(filename)}`,
-      { responseType: "stream", timeout: 15000 }
-    );
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-    res.setHeader("Cache-Control", "private, max-age=3600");
-    response.data.pipe(res);
-  } catch (err) {
-    const status = err.response?.status || 503;
-    res.status(status).json({ error: `Could not retrieve document '${filename}'.` });
-  }
-});
-
-/**
  * GET /api/health
  * Quick liveness check. Also pings the Python service.
  */
@@ -164,57 +142,41 @@ app.get("/api/analytics", async (req, res) => {
 
 /**
  * GET /api/pdf/:filename
- * Proxies a PDF file from MinIO so the browser can open it directly
- * without needing MinIO credentials or dealing with CORS.
- *
- * The filename comes from the Qdrant payload url field (after stripping "pdf:").
- * Example: GET /api/pdf/employee-handbook.pdf
- *          → streams the file from MinIO bucket "documents"
+ * Streams a PDF from the Python/MinIO backend so the frontend can link to it.
+ * This gives PDF sources a real, clickable URL (/api/pdf/my-document.pdf)
+ * that the browser can open directly, without exposing MinIO credentials.
  */
 app.get("/api/pdf/:filename", async (req, res) => {
   const filename = req.params.filename;
-
-  // Basic guard — no path traversal
+  // Basic safety: reject path traversal attempts
   if (!filename || filename.includes("..") || filename.includes("/")) {
     return res.status(400).json({ error: "Invalid filename." });
   }
-
-  const MINIO_HOST   = process.env.MINIO_HOST   || "minio:9000";
-  const MINIO_BUCKET = process.env.MINIO_BUCKET || "documents";
-  const minioUrl     = `http://${MINIO_HOST}/${MINIO_BUCKET}/${encodeURIComponent(filename)}`;
-
   try {
-    const upstream = await axios.get(minioUrl, {
-      responseType: "stream",
-      timeout: 15000,
-      // MinIO anonymous access works if the bucket policy allows public read.
-      // If your bucket is private, add an Authorization header here or
-      // use the MinIO SDK with credentials (minio npm package).
-    });
-
-    res.setHeader("Content-Type", upstream.headers["content-type"] || "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-
-    // Stream the PDF directly to the browser
-    upstream.data.pipe(res);
+    const response = await axios.get(
+      `${PYTHON_BASE_URL}/pdf/${encodeURIComponent(filename)}`,
+      { responseType: "stream", timeout: 15000 }
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${filename}"`
+    );
+    response.data.pipe(res);
   } catch (err) {
-    if (err.response?.status === 403 || err.response?.status === 401) {
-      // Bucket is private — return a helpful error rather than a silent failure
-      return res.status(403).json({
-        error: "This PDF is stored in a private MinIO bucket. " +
-               "Set the bucket policy to public-read in the MinIO console " +
-               "(http://localhost:9001) or configure server-side credentials.",
-      });
-    }
     if (err.response?.status === 404) {
-      return res.status(404).json({ error: `PDF not found: ${filename}` });
+      return res.status(404).json({ error: "Document not found." });
     }
-    console.error("[/api/pdf] Error fetching from MinIO:", err.message);
-    return res.status(502).json({ error: "Could not retrieve PDF from storage." });
+    console.error("[/api/pdf] Error:", err.message);
+    return res.status(503).json({ error: "Could not retrieve document." });
   }
 });
 
-
+/**
+ * POST /api/refresh
+ * Triggers a knowledge-base refresh on the Python service.
+ * Returns: { message: string }
+ */
 app.post("/api/refresh", async (req, res) => {
   try {
     const response = await axios.post(`${PYTHON_BASE_URL}/refresh`, {}, { timeout: 60000 });
