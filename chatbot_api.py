@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, stream_with_context
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
@@ -815,43 +815,42 @@ def chat():
 @app.route("/pdf/<path:filename>", methods=["GET"])
 def serve_pdf(filename):
     """
-    Fetches a PDF from MinIO by filename and streams it back to the caller.
-    Called by the Node.js /api/pdf/:filename proxy so the frontend can open PDFs.
+    Fetches a PDF from MinIO using server-side credentials and streams it to the caller.
+    Called by the Node.js /api/pdf/:filename proxy — credentials never reach the browser.
     """
-    try:
-        from minio import Minio
-        from minio.error import S3Error
-    except ImportError:
-        return jsonify({"error": "MinIO client not available."}), 503
-
-    minio_host   = os.getenv("MINIO_HOST",   "minio:9000")
-    minio_user   = os.getenv("MINIO_USER",   "minioadmin")
-    minio_pass   = os.getenv("MINIO_PASS",   "minioadmin")
-    minio_bucket = os.getenv("MINIO_BUCKET", "documents")
-
     # Block path traversal
     if ".." in filename or "/" in filename:
         return jsonify({"error": "Invalid filename."}), 400
 
+    client = _get_minio_client()
+    if client is None:
+        return jsonify({"error": "Document storage unavailable — MinIO not configured."}), 503
+
     try:
-        client = Minio(minio_host, access_key=minio_user, secret_key=minio_pass, secure=False)
-        response = client.get_object(minio_bucket, filename)
-        pdf_bytes = response.read()
-        response.close()
-        response.release_conn()
+        minio_response = client.get_object(MINIO_BUCKET, filename)
+
+        def generate():
+            try:
+                for chunk in minio_response.stream(32 * 1024):
+                    yield chunk
+            finally:
+                minio_response.close()
+                minio_response.release_conn()
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
     except Exception as e:
         err = str(e)
-        if "NoSuchKey" in err or "does not exist" in err.lower():
-            return jsonify({"error": "Document not found."}), 404
-        print(f"[/pdf] MinIO error: {e}")
+        if "NoSuchKey" in err or "does not exist" in err.lower() or "404" in err:
+            return jsonify({"error": f"Document '{filename}' not found in storage."}), 404
+        print(f"[/pdf] MinIO error for '{filename}': {e}")
         return jsonify({"error": "Could not retrieve document."}), 503
-
-    from flask import Response
-    return Response(
-        pdf_bytes,
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
-    )
 
 
 @app.route("/refresh", methods=["POST"])
