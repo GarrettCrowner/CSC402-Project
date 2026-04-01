@@ -162,8 +162,17 @@ async function checkStatusAndWelcome() {
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(t);
         const data = await res.json();
-        ok = data.status === "ok" && data.python === "reachable";
-        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
+        if (data.status === "ok") {
+            ok = true;
+            if (dot) dot.style.backgroundColor = "#22c55e";
+        } else if (data.status === "loading") {
+            // Backend is still initialising the embedding model — retry in 3 s
+            if (dot) dot.style.backgroundColor = "#f59e0b"; // amber
+            setTimeout(checkStatusAndWelcome, 3000);
+            return;
+        } else {
+            if (dot) dot.style.backgroundColor = "#ef4444";
+        }
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
     }
@@ -186,7 +195,9 @@ async function checkStatus() {
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(t);
         const data = await res.json();
-        dot.style.backgroundColor = (data.status === "ok" && data.python === "reachable") ? "#22c55e" : "#ef4444";
+        if (data.status === "ok") dot.style.backgroundColor = "#22c55e";
+        else if (data.status === "loading") dot.style.backgroundColor = "#f59e0b";
+        else dot.style.backgroundColor = "#ef4444";
     } catch {
         const d = document.getElementById("status-dot");
         if (d) d.style.backgroundColor = "#ef4444";
