@@ -24,8 +24,9 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, stream_with_context
 from openai import OpenAI
+from urllib.parse import quote
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
@@ -298,6 +299,23 @@ def build_chunks(pages: Dict[str, str]) -> List[Dict[str, str]]:
     return all_chunks
 
 
+# ─── PDF URL Resolution ───────────────────────────────────────────────────────
+
+# The Node.js server exposes GET /api/pdf/<filename> as a proxy to MinIO.
+# This base URL must be reachable from the user's browser.
+PDF_PROXY_BASE = os.getenv("PDF_PROXY_BASE", "http://localhost:3000/api/pdf")
+
+
+def pdf_label_to_url(source_label: str) -> str:
+    """
+    Converts a Qdrant payload url like 'pdf:employee-handbook.pdf'
+    into a browser-accessible download URL via the Node proxy.
+    e.g. → 'http://localhost:3000/api/pdf/employee-handbook.pdf'
+    """
+    filename = source_label[len("pdf:"):]  # strip the 'pdf:' prefix
+    return f"{PDF_PROXY_BASE}/{quote(filename)}"
+
+
 # ─── Qdrant Semantic Retrieval ───────────────────────────────────────────────
 # Replaces the previous keyword-scoring approach.
 # build_context() API is unchanged — the rest of the file is unaffected.
@@ -330,11 +348,14 @@ def build_context(question: str, chunks: object = None) -> str:
     if not results:
         return ""
 
-    selected = [
-        {"url": r.payload.get("url", ""), "text": r.payload.get("text", "")}
-        for r in results
-        if r.payload.get("text")
-    ]
+    selected = []
+    for r in results:
+        if not r.payload.get("text"):
+            continue
+        raw_url = r.payload.get("url", "")
+        # Resolve pdf: labels → real browser-accessible URLs via the Node proxy
+        resolved_url = pdf_label_to_url(raw_url) if raw_url.startswith("pdf:") else raw_url
+        selected.append({"url": resolved_url, "text": r.payload.get("text", ""), "raw_url": raw_url})
 
     if not selected:
         return ""
@@ -405,23 +426,60 @@ def linkify_contacts(text: str) -> str:
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
 def build_hr_instructions(context: str) -> str:
+    # Detect whether context has real web URLs or only internal pdf: labels.
+    has_web_url    = "https://" in context
+    has_pdf_source = "pdf:" in context
+
+    if has_web_url:
+        link_rule = (
+            "- ALWAYS end your response with a relevant HTML anchor link using the exact URLs\n"
+            "  listed under \'Available source URLs\' in the context. Use natural active anchor text.\n"
+            "  Format links exactly like this - no markdown, no raw URLs:\n"
+            "  <a href=\"https://example.com\">Learn more about retirement plans here</a>\n"
+            "  or vary naturally:\n"
+            "  <a href=\"https://example.com\">Visit the WCU Parking page for full details</a>\n"
+            "- Only use URLs that appear in the \'Available source URLs\' list - never invent URLs.\n"
+            "- When mentioning external provider websites (e.g. TIAA, Retirement@Work, SERS, PSERS, Empower, Fidelity),\n"
+            "  always format them as HTML anchor links using the exact URL from the source list.\n"
+            "  Example: <a href=\"https://retirementatwork.org/wcupa/\">Retirement@Work</a>"
+        )
+    elif has_pdf_source:
+        # Extract all pdf: filenames — filenames may contain spaces so we match
+        # up to the end of the line or a comma, not just non-whitespace chars.
+        pdf_names = re.findall(r"pdf:([^\n,]+?)(?=\s*(?:,|\n|$))", context)
+        pdf_names = [n.strip() for n in pdf_names if n.strip()]
+        pdf_link_examples = ""
+        if pdf_names:
+            name = pdf_names[0]
+            encoded = quote(name)
+            label = name.replace("_", " ").replace("-", " ")
+            if label.lower().endswith(".pdf"):
+                label = label[:-4]
+            pdf_link_examples = (
+                f'  Example: <a href="{PDF_PROXY_BASE}/{encoded}">{label}</a>\n'
+            )
+        link_rule = (
+            "- This answer comes from an internal HR PDF document.\\n"
+            "- End your response with a clickable link to the PDF using this EXACT format\\n"
+            "  (double quotes around href, full URL including http://localhost:3000):\\n"
+            f"{pdf_link_examples}"
+            "- Use the COMPLETE filename exactly as it appears after 'pdf:' in the source — including spaces.\\n"
+            "- Do NOT shorten, truncate, or alter the filename in any way.\\n"
+            "- Do NOT invent filenames. Only link files whose 'pdf:' label appears in the context."
+        )
+    else:
+        link_rule = (
+            "- If a relevant web URL is available in the context, end with an HTML anchor link.\n"
+            "- If no URL is available, omit the link entirely - do not invent one."
+        )
+
     return f"""
-You are Rammy, the West Chester University mascot and HR assistant. You are warm, approachable, and conversational — like a knowledgeable colleague, not a policy manual.
+You are Rammy, the West Chester University mascot and HR assistant. You are warm, approachable, and conversational - like a knowledgeable colleague, not a policy manual.
 
 Rules:
 - Only answer HR-related questions using the context provided below.
 - Respond naturally in 1-3 sentences. Be concise but friendly.
-- ALWAYS end your response with a relevant HTML anchor link using the exact URLs
-  listed under "Available source URLs" in the context. Use natural active anchor text.
-  Format links exactly like this — no markdown, no raw URLs:
-  <a href="https://example.com">Learn more about retirement plans here</a>
-  or vary naturally:
-  <a href="https://example.com">Visit the WCU Parking page for full details</a>
-  <a href="https://example.com">Check out the PASSHE benefits page</a>
-- Only use URLs that appear in the "Available source URLs" list — never invent URLs.
-- When mentioning external provider websites (e.g. TIAA, Retirement@Work, SERS, PSERS, Empower, Fidelity),
-  always format them as HTML anchor links using the exact URL from the source list.
-  Example: <a href="https://retirementatwork.org/wcupa/">Retirement@Work</a>
+{link_rule}
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
 - If the question is not HR-related, respond with exactly the word: OUTOFSCOPE
 - Treat similar wording as the same intent (e.g. "change address" = "update address").
@@ -434,7 +492,7 @@ Rules:
 
 CONVERSATIONAL FOLLOW-UP RULES (very important):
 - After answering, ALWAYS ask one natural follow-up question to continue the conversation helpfully.
-- Place the follow-up question on its own line at the end, after the anchor link.
+- Place the follow-up question on its own line at the end, after the anchor link (or document citation).
 - If the topic is broad or has distinct sub-topics (e.g. retirement plans, benefits, parking), offer 2-3 specific options using this exact format on its own line:
   [OPTIONS: Option A label | Option B label | Option C label]
   Example: [OPTIONS: SERS pension plan | ARP (defined contribution) | Voluntary 403(b)/457 plans]
@@ -595,6 +653,74 @@ def ask_model(
 
 app = Flask(__name__)
 
+# ─── MinIO Helper ─────────────────────────────────────────────────────────────
+
+# Module-level MinIO config (mirrors docker-compose environment variables)
+MINIO_HOST   = os.getenv("MINIO_HOST",   "minio:9000")
+MINIO_USER   = os.getenv("MINIO_USER",   "minioadmin")
+MINIO_PASS   = os.getenv("MINIO_PASS",   "minioadmin")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "documents")
+
+try:
+    from minio import Minio as _Minio
+    from minio.error import S3Error
+    MINIO_AVAILABLE = True
+except ImportError:
+    MINIO_AVAILABLE = False
+    print("[minio] WARNING: minio package not installed — PDF serving disabled.")
+
+def _get_minio_client():
+    """Return a connected Minio client, or None if unavailable."""
+    if not MINIO_AVAILABLE:
+        return None
+    try:
+        return _Minio(MINIO_HOST, access_key=MINIO_USER, secret_key=MINIO_PASS, secure=False)
+    except Exception as e:
+        print(f"[minio] Could not create client: {e}")
+        return None
+
+
+# ─── Document Proxy Endpoint ──────────────────────────────────────────────────
+
+@app.route("/document/<path:filename>", methods=["GET"])
+def serve_document(filename):
+    """
+    Proxies a PDF from MinIO so the browser can open it as a real URL.
+    e.g. GET /document/benefits-guide.pdf  →  streams the PDF bytes.
+
+    This turns the internal  pdf:benefits-guide.pdf  source label into a
+    clickable  http://localhost:5001/document/benefits-guide.pdf  link.
+    """
+    client = _get_minio_client()
+    if client is None:
+        return jsonify({"error": "Document storage unavailable."}), 503
+
+    try:
+        response = client.get_object(MINIO_BUCKET, filename)
+
+        def generate():
+            try:
+                for chunk in response.stream(32 * 1024):
+                    yield chunk
+            finally:
+                response.close()
+                response.release_conn()
+
+        return Response(
+            stream_with_context(generate()),
+            content_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
+    except S3Error as e:
+        print(f"[document] MinIO error for '{filename}': {e}")
+        return jsonify({"error": f"Document '{filename}' not found."}), 404
+    except Exception as e:
+        print(f"[document] Unexpected error for '{filename}': {e}")
+        return jsonify({"error": "Could not retrieve document."}), 500
+
 # Module-level state — initialised once on startup
 _chunks: List[Dict[str, str]] = []   # kept for API compat; no longer used for retrieval
 _cache_lock = threading.Lock()
@@ -702,6 +828,51 @@ def chat():
     log_interaction(message, reply, is_oos)
 
     return jsonify({"reply": reply})
+
+
+@app.route("/pdf/<path:filename>", methods=["GET"])
+def serve_pdf(filename):
+    """
+    Fetches a PDF from MinIO using server-side credentials and streams it to the caller.
+    Called by the Node.js /api/pdf/* proxy — credentials never reach the browser.
+    Flask's <path:filename> converter URL-decodes the name automatically, so
+    'Dental%20Benefits.pdf' arrives here as 'Dental Benefits.pdf'.
+    """
+    # Block path traversal only
+    if ".." in filename:
+        return jsonify({"error": "Invalid filename."}), 400
+
+    client = _get_minio_client()
+    if client is None:
+        return jsonify({"error": "Document storage unavailable — MinIO not configured."}), 503
+
+    print(f"[/pdf] Fetching '{filename}' from MinIO bucket '{MINIO_BUCKET}'")
+
+    try:
+        minio_response = client.get_object(MINIO_BUCKET, filename)
+
+        def generate():
+            try:
+                for chunk in minio_response.stream(32 * 1024):
+                    yield chunk
+            finally:
+                minio_response.close()
+                minio_response.release_conn()
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
+    except Exception as e:
+        err = str(e)
+        print(f"[/pdf] MinIO error for '{filename}': {e}")
+        if "NoSuchKey" in err or "does not exist" in err.lower() or "404" in err:
+            return jsonify({"error": f"Document '{filename}' not found in storage."}), 404
+        return jsonify({"error": "Could not retrieve document."}), 503
 
 
 @app.route("/refresh", methods=["POST"])
