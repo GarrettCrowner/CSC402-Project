@@ -61,8 +61,8 @@ services:
   # ── Python Flask Backend ───────────────────────────────────────────────────
   python:
     build:
-      context: .
-      dockerfile: Dockerfile.python
+      context: ..
+      dockerfile: docker/Dockerfile.python
     container_name: rammy-python
     env_file:
       - .env
@@ -91,8 +91,8 @@ services:
   # ── Node.js Express Server ─────────────────────────────────────────────────
   node:
     build:
-      context: .
-      dockerfile: Dockerfile.node
+      context: ..
+      dockerfile: docker/Dockerfile.node
     container_name: rammy-node
     environment:
       - PORT=3000
