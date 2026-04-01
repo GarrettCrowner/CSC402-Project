@@ -225,9 +225,9 @@
 #send-btn {
   width: 50px !important;
   height: 50px !important;
-  color: var(--cb-yellow) !important;
+  color: var(--cb-purple) !important;
   font-size: x-large !important;
-  background-color: var(--cb-purple) !important;
+  background-color: #ffffff !important;
   border: none !important;
   border-radius: 100% !important;
   cursor: pointer !important;
@@ -237,7 +237,7 @@
   flex-shrink: 0 !important;
   transition: background-color 0.2s ease !important;
 }
-#send-btn:hover { background-color: var(--cb-gray-400) !important; }
+#send-btn:hover { background-color: var(--cb-gray-300) !important; }
 
 /* ─── Typing indicator ──────────────────────────────────────── */
 #loading-bubble {
