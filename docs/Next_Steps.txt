@@ -1,3 +1,5 @@
+Fixing folders breaking my branch 
+Updating analytics page to have greetings as a message type
 See how to get MinIo integrated across different devices
 Merging UI with the other group members
 Adding the public facing website integration
