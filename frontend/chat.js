@@ -56,7 +56,8 @@ function applyA11y(s) {
     // Update send button background in high contrast mode
     const sendBtn = document.getElementById("send-btn");
     if (sendBtn) {
-        sendBtn.style.setProperty("background-color", isHigh ? "#000000" : "#6E3061", "important");
+        sendBtn.style.setProperty("background-color", isHigh ? "#000000" : "#ffffff", "important");
+        sendBtn.style.setProperty("color", isHigh ? "#FFE800" : "#6E3061", "important");
     }
 
     // Update live bubble text colors immediately (before next message)
