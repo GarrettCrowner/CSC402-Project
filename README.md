@@ -280,6 +280,8 @@ mv Next_Steps.txt docs/
 | Port already in use | `docker-compose down` then `docker-compose up` |
 | `.env not found` error | Complete Step 2 in the setup instructions |
 | Bot only gives out-of-scope replies | Run `qdrant_setup.py` — Qdrant collection is empty |
+| Bot deflects after `docker restart rammy-python` | Restarting the container clears the Qdrant collection reference — always run `docker exec rammy-python python qdrant_setup.py` after any restart |
+| Logs show `collection 'rammy_hr' not found` | Same as above — run `qdrant_setup.py` |
 | `rammy_hr` collection not found | Same as above |
 | MinIO console not loading | `docker logs rammy-minio` |
 | PDFs not being indexed | Confirm bucket is named exactly `documents`, then re-run `qdrant_setup.py` |
@@ -301,6 +303,12 @@ docker logs rammy-minio
 
 # Open an interactive shell inside the Python container
 docker exec -it rammy-python bash
+
+# Hot-reload Python code without a full rebuild
+# WARNING: always re-run qdrant_setup.py after this — the restart clears the collection reference
+docker cp backend/chatbot_api.py rammy-python:/app/chatbot_api.py
+docker restart rammy-python
+docker exec rammy-python python qdrant_setup.py
 
 # Force a full clean rebuild (wipes Qdrant and MinIO volumes)
 docker-compose down -v
