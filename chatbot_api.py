@@ -26,6 +26,7 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request, Response, stream_with_context
 from openai import OpenAI
+from urllib.parse import quote
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
@@ -312,8 +313,6 @@ def pdf_label_to_url(source_label: str) -> str:
     e.g. → 'http://localhost:3000/api/pdf/employee-handbook.pdf'
     """
     filename = source_label[len("pdf:"):]  # strip the 'pdf:' prefix
-    # URL-encode spaces / special chars in the filename
-    from urllib.parse import quote
     return f"{PDF_PROXY_BASE}/{quote(filename)}"
 
 
@@ -445,22 +444,27 @@ def build_hr_instructions(context: str) -> str:
             "  Example: <a href=\"https://retirementatwork.org/wcupa/\">Retirement@Work</a>"
         )
     elif has_pdf_source:
-        # Extract all pdf: filenames from context so the LLM has exact names to link.
-        import re as _re
-        pdf_names = _re.findall(r"pdf:([^\s\n,]+)", context)
+        # Extract all pdf: filenames — filenames may contain spaces so we match
+        # up to the end of the line or a comma, not just non-whitespace chars.
+        pdf_names = re.findall(r"pdf:([^\n,]+?)(?=\s*(?:,|\n|$))", context)
+        pdf_names = [n.strip() for n in pdf_names if n.strip()]
         pdf_link_examples = ""
         if pdf_names:
             name = pdf_names[0]
-            label = name.replace("_", " ").replace("-", " ").replace(".pdf", "")
+            encoded = quote(name)
+            label = name.replace("_", " ").replace("-", " ")
+            if label.lower().endswith(".pdf"):
+                label = label[:-4]
             pdf_link_examples = (
-                f"  Example: <a href=\"/api/pdf/{name}\">{label}</a>\n"
+                f'  Example: <a href="{PDF_PROXY_BASE}/{encoded}">{label}</a>\n'
             )
         link_rule = (
-            "- This answer comes from an internal HR PDF document served at /api/pdf/<filename>.\n"
-            "- End your response with a clickable link to the PDF using this EXACT format:\n"
+            "- This answer comes from an internal HR PDF document.\\n"
+            "- End your response with a clickable link to the PDF using this EXACT format\\n"
+            "  (double quotes around href, full URL including http://localhost:3000):\\n"
             f"{pdf_link_examples}"
-            "  Use the exact filename that appears after 'pdf:' in the source, and derive a readable\n"
-            "  label by replacing underscores/hyphens with spaces and dropping the .pdf extension.\n"
+            "- Use the COMPLETE filename exactly as it appears after 'pdf:' in the source — including spaces.\\n"
+            "- Do NOT shorten, truncate, or alter the filename in any way.\\n"
             "- Do NOT invent filenames. Only link files whose 'pdf:' label appears in the context."
         )
     else:
