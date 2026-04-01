@@ -816,15 +816,19 @@ def chat():
 def serve_pdf(filename):
     """
     Fetches a PDF from MinIO using server-side credentials and streams it to the caller.
-    Called by the Node.js /api/pdf/:filename proxy — credentials never reach the browser.
+    Called by the Node.js /api/pdf/* proxy — credentials never reach the browser.
+    Flask's <path:filename> converter URL-decodes the name automatically, so
+    'Dental%20Benefits.pdf' arrives here as 'Dental Benefits.pdf'.
     """
-    # Block path traversal
-    if ".." in filename or "/" in filename:
+    # Block path traversal only
+    if ".." in filename:
         return jsonify({"error": "Invalid filename."}), 400
 
     client = _get_minio_client()
     if client is None:
         return jsonify({"error": "Document storage unavailable — MinIO not configured."}), 503
+
+    print(f"[/pdf] Fetching '{filename}' from MinIO bucket '{MINIO_BUCKET}'")
 
     try:
         minio_response = client.get_object(MINIO_BUCKET, filename)
@@ -847,9 +851,9 @@ def serve_pdf(filename):
         )
     except Exception as e:
         err = str(e)
+        print(f"[/pdf] MinIO error for '{filename}': {e}")
         if "NoSuchKey" in err or "does not exist" in err.lower() or "404" in err:
             return jsonify({"error": f"Document '{filename}' not found in storage."}), 404
-        print(f"[/pdf] MinIO error for '{filename}': {e}")
         return jsonify({"error": "Could not retrieve document."}), 503
 
 
