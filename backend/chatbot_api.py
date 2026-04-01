@@ -478,7 +478,6 @@ You are Rammy, the West Chester University mascot and HR assistant. You are warm
 
 Rules:
 - Only answer HR-related questions using the context provided below.
-- If the user sends a short topic phrase (e.g. "Retirement plans", "Benefits & insurance", "Parking permits"), treat it as a request for a brief overview of that topic — do NOT return OUTOFSCOPE.
 - Respond naturally in 1-3 sentences. Be concise but friendly.
 {link_rule}
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
@@ -618,7 +617,13 @@ def ask_model(
             return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
 
         system_prompt = build_hr_instructions(context)
+        # Strip any leading assistant messages — OpenAI requires history to
+        # start with a user turn. A leading assistant message (e.g. the welcome
+        # greeting stored in history) causes GPT to respond with a greeting
+        # instead of answering the actual question.
         trimmed_history = history[-4:] if history else []
+        while trimmed_history and trimmed_history[0].get("role") != "user":
+            trimmed_history = trimmed_history[1:]
         messages = (
             [{"role": "system", "content": system_prompt}]
             + trimmed_history
@@ -801,9 +806,7 @@ def _load_sources() -> None:
 
 @app.route("/health", methods=["GET"])
 def health():
-    if _embed_model is None or _qdrant_client is None:
-        return jsonify({"status": "loading", "python": "reachable"}), 503
-    return jsonify({"status": "ok", "python": "reachable"})
+    return jsonify({"status": "ok"})
 
 
 @app.route("/chat", methods=["POST"])
