@@ -46,10 +46,27 @@ function applyA11y(s) {
     }
 
     // Contrast
-    if (s.contrast === "high") {
+    const isHigh = s.contrast === "high";
+    if (isHigh) {
         container.setAttribute("data-contrast", "high");
     } else {
         container.removeAttribute("data-contrast");
+    }
+
+    // Update send button background in high contrast mode
+    const sendBtn = document.getElementById("send-btn");
+    if (sendBtn) {
+        sendBtn.style.setProperty("background-color", isHigh ? "#000000" : "#6E3061", "important");
+    }
+
+    // Update live bubble text colors immediately (before next message)
+    if (msgArea) {
+        msgArea.querySelectorAll(".agent-bubble p").forEach(p => {
+            p.style.setProperty("color", isHigh ? "#ffffff" : "#111827", "important");
+        });
+        msgArea.querySelectorAll(".user-bubble p").forEach(p => {
+            p.style.setProperty("color", isHigh ? "#000000" : "#f9fafb", "important");
+        });
     }
 }
 
@@ -395,7 +412,7 @@ function displayMessage(role, text) {
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
-            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
+            bubble.innerHTML = `<p style="color:#f9fafb;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
         }
     }
     wrapper.appendChild(bubble);
