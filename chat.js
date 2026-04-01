@@ -207,19 +207,33 @@ function getTimestamp() {
 function sanitizeHtml(str) {
     const anchors = [];
     let s = String(str);
-    // Preserve https:// links — add 📄 icon for PDF proxy links
-    s = s.replace(/<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
+
+    function stashLink(href, text) {
         const isPdf = href.includes("/api/pdf/");
-        const label = isPdf ? `📄 ${text}` : text;
-        anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#4a1259;word-break:break-word;">${label}</a>`);
-        return `\x00A${anchors.length - 1}\x00`;
-    });
-    s = s.replace(/<a\s+href="(mailto:[^"]+|tel:[^"]+)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => {
-        anchors.push(`<a href="${href}" style="color:#4a1259;">${text}</a>`);
-        return `\x00A${anchors.length - 1}\x00`;
-    });
+        const label = isPdf ? "\uD83D\uDCC4 " + text : text;
+        if (/^https?:\/\//.test(href)) {
+            anchors.push('<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#4a1259;word-break:break-word;">' + label + '</a>');
+        } else if (/^mailto:|^tel:/.test(href)) {
+            anchors.push('<a href="' + href + '" style="color:#4a1259;">' + text + '</a>');
+        } else {
+            anchors.push(text);
+        }
+        return "\x00A" + (anchors.length - 1) + "\x00";
+    }
+
+    // Double-quoted:  <a href="...">text</a>
+    s = s.replace(/<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+        function(_, href, text) { return stashLink(href, text); });
+
+    // Single-quoted:  <a href='...'>text</a>
+    s = s.replace(/<a\s+href='([^']+)'[^>]*>([\s\S]*?)<\/a>/gi,
+        function(_, href, text) { return stashLink(href, text); });
+
+    // Escape everything else
     s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    return s.replace(/\x00A(\d+)\x00/g, (_, i) => anchors[+i]);
+
+    // Restore stashed anchors
+    return s.replace(/\x00A(\d+)\x00/g, function(_, i) { return anchors[+i]; });
 }
 
 // ─── Quick-Reply Chip Parsing ─────────────────────────────────────────────────
