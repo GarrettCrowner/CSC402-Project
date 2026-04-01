@@ -655,12 +655,26 @@ app = Flask(__name__)
 
 # ─── MinIO Helper ─────────────────────────────────────────────────────────────
 
+# Module-level MinIO config (mirrors docker-compose environment variables)
+MINIO_HOST   = os.getenv("MINIO_HOST",   "minio:9000")
+MINIO_USER   = os.getenv("MINIO_USER",   "minioadmin")
+MINIO_PASS   = os.getenv("MINIO_PASS",   "minioadmin")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "documents")
+
+try:
+    from minio import Minio as _Minio
+    from minio.error import S3Error
+    MINIO_AVAILABLE = True
+except ImportError:
+    MINIO_AVAILABLE = False
+    print("[minio] WARNING: minio package not installed — PDF serving disabled.")
+
 def _get_minio_client():
     """Return a connected Minio client, or None if unavailable."""
     if not MINIO_AVAILABLE:
         return None
     try:
-        return Minio(MINIO_HOST, access_key=MINIO_USER, secret_key=MINIO_PASS, secure=False)
+        return _Minio(MINIO_HOST, access_key=MINIO_USER, secret_key=MINIO_PASS, secure=False)
     except Exception as e:
         print(f"[minio] Could not create client: {e}")
         return None
