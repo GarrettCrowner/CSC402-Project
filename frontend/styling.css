@@ -285,7 +285,7 @@
   border: 2px solid #ffffff !important;
 }
 #chat-container[data-contrast="high"] .agent-bubble p {
-  color: #000000 !important;
+  color: #ffffff !important;
 }
 #chat-container[data-contrast="high"] .user-bubble {
   background: #FFE800 !important;
