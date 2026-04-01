@@ -65,7 +65,7 @@ function applyA11y(s) {
             p.style.setProperty("color", isHigh ? "#ffffff" : "#111827", "important");
         });
         msgArea.querySelectorAll(".user-bubble p").forEach(p => {
-            p.style.setProperty("color", isHigh ? "#000000" : "#f9fafb", "important");
+            p.style.setProperty("color", isHigh ? "#ffffff" : "#f9fafb", "important");
         });
     }
 }
@@ -384,6 +384,10 @@ function displayMessage(role, text) {
     const cw = document.getElementById("message-container");
     if (!cw) return;
 
+    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
+    const agentTextColor = isHigh ? "#ffffff" : "#111827";
+    const userTextColor  = isHigh ? "#ffffff" : "#f9fafb";
+
     const wrapper = document.createElement("div");
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
@@ -397,7 +401,7 @@ function displayMessage(role, text) {
         // For agent messages, parse out options/follow-ups before displaying
         if (role !== "You") {
             const { mainText, options, followUp } = parseReply(text);
-            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+            bubble.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
             wrapper.appendChild(bubble);
             const meta = document.createElement("div");
             meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
@@ -412,7 +416,7 @@ function displayMessage(role, text) {
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
-            bubble.innerHTML = `<p style="color:#f9fafb;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
+            bubble.innerHTML = `<p style="color:${userTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
         }
     }
     wrapper.appendChild(bubble);
@@ -441,11 +445,14 @@ function replaceLoadingBubble(text) {
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
 
+    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
+    const agentTextColor = isHigh ? "#ffffff" : "#111827";
+
     const { mainText, options, followUp } = parseReply(text);
 
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+    loader.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
 
     const meta = document.createElement("div");
     meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
