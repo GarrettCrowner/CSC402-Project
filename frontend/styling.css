@@ -277,7 +277,7 @@
 
 /* ─── High Contrast Mode ────────────────────────────────────── */
 #chat-container[data-contrast="high"] #message-container {
-  background-color: #FFE800 !important;
+  background-color: #000000 !important;
 }
 #chat-container[data-contrast="high"] .agent-bubble {
   background: #000000 !important;
@@ -296,7 +296,7 @@
   color: #ffffff !important;
 }
 #chat-container[data-contrast="high"] .profile-name {
-  color: #333333 !important;
+  color: #aaaaaa !important;
 }
 #chat-container[data-contrast="high"] .quick-reply-chip {
   background: #000000 !important;
