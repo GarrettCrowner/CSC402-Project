@@ -130,7 +130,6 @@ function replaceConnecting(isError) {
     if (wrapper) wrapper.remove();
 
     if (!isError) {
-        addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
     }
     // On error we leave the chat empty — the status dot turns red and
@@ -626,7 +625,6 @@ function createDropdown() {
             if (m) m.innerHTML = "";
             history = [];
             _welcomed = false;
-            addHistory("assistant", WELCOME);
             displayMessage("Agent", WELCOME);
             _welcomed = true;
         }},
