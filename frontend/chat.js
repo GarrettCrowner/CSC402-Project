@@ -334,8 +334,12 @@ function renderQuickReplies(chips, followUpText, botContext) {
         });
         btn.addEventListener("click", () => {
             // displayText = the chip label shown in the user bubble
-            // apiText     = enriched with context so the backend understands the reply
-            const context = followUpText || botContext || "";
+            // apiText     = enriched with context so the backend understands the reply.
+            // Don't append context if botContext is the welcome message — chips
+            // rendered after the greeting are top-level topic starters, not replies.
+            const context = (botContext && botContext !== WELCOME)
+                ? (followUpText || botContext)
+                : (followUpText || "");
             const apiText = context
                 ? `${chipText} (regarding: "${context.slice(0, 120)}")`
                 : chipText;
