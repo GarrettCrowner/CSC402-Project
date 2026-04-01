@@ -800,7 +800,9 @@ def _load_sources() -> None:
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    if _embed_model is None or _qdrant_client is None:
+        return jsonify({"status": "loading", "python": "reachable"}), 503
+    return jsonify({"status": "ok", "python": "reachable"})
 
 
 @app.route("/chat", methods=["POST"])
