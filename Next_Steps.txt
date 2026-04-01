@@ -1,4 +1,3 @@
-Updating pdf linking and some regular linking
 See how to get MinIo integrated across different devices
 Merging UI with the other group members
 Adding the public facing website integration
