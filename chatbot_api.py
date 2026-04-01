@@ -436,13 +436,13 @@ def build_hr_instructions(context: str) -> str:
             "- ALWAYS end your response with a relevant HTML anchor link using the exact URLs\n"
             "  listed under \'Available source URLs\' in the context. Use natural active anchor text.\n"
             "  Format links exactly like this - no markdown, no raw URLs:\n"
-            "  <a href=\'https://example.com\'>Learn more about retirement plans here</a>\n"
+            "  <a href=\"https://example.com\">Learn more about retirement plans here</a>\n"
             "  or vary naturally:\n"
-            "  <a href=\'https://example.com\'>Visit the WCU Parking page for full details</a>\n"
+            "  <a href=\"https://example.com\">Visit the WCU Parking page for full details</a>\n"
             "- Only use URLs that appear in the \'Available source URLs\' list - never invent URLs.\n"
             "- When mentioning external provider websites (e.g. TIAA, Retirement@Work, SERS, PSERS, Empower, Fidelity),\n"
             "  always format them as HTML anchor links using the exact URL from the source list.\n"
-            "  Example: <a href=\'https://retirementatwork.org/wcupa/\'>Retirement@Work</a>"
+            "  Example: <a href=\"https://retirementatwork.org/wcupa/\">Retirement@Work</a>"
         )
     elif has_pdf_source:
         # Extract all pdf: filenames from context so the LLM has exact names to link.
