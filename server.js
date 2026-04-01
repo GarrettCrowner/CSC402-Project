@@ -146,22 +146,26 @@ app.get("/api/analytics", async (req, res) => {
  * This gives PDF sources a real, clickable URL (/api/pdf/my-document.pdf)
  * that the browser can open directly, without exposing MinIO credentials.
  */
-app.get("/api/pdf/:filename", async (req, res) => {
-  const filename = req.params.filename;
-  // Basic safety: reject path traversal attempts
-  if (!filename || filename.includes("..") || filename.includes("/")) {
+// Use a wildcard so Express captures filenames that contain spaces or special chars.
+// req.params[0] is the raw decoded string — e.g. "Dental Benefits Summary.pdf"
+app.get("/api/pdf/*", async (req, res) => {
+  // Express decodes %20 → space automatically; grab the full decoded filename
+  const filename = req.params[0];
+
+  if (!filename || filename.includes("..")) {
     return res.status(400).json({ error: "Invalid filename." });
   }
+
   try {
+    // Re-encode only the filename portion so axios doesn't mangle spaces.
+    // Split on "/" in case MinIO has folder structure, encode each segment.
+    const encodedPath = filename.split("/").map(encodeURIComponent).join("/");
     const response = await axios.get(
-      `${PYTHON_BASE_URL}/pdf/${encodeURIComponent(filename)}`,
+      `${PYTHON_BASE_URL}/pdf/${encodedPath}`,
       { responseType: "stream", timeout: 15000 }
     );
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${filename}"`
-    );
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
     response.data.pipe(res);
   } catch (err) {
     if (err.response?.status === 404) {
