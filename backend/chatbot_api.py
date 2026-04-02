@@ -617,7 +617,13 @@ def ask_model(
             return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
 
         system_prompt = build_hr_instructions(context)
+        # Strip any leading assistant messages — OpenAI requires history to
+        # start with a user turn. A leading assistant message (e.g. the welcome
+        # greeting stored in history) causes GPT to respond with a greeting
+        # instead of answering the actual question.
         trimmed_history = history[-4:] if history else []
+        while trimmed_history and trimmed_history[0].get("role") != "user":
+            trimmed_history = trimmed_history[1:]
         messages = (
             [{"role": "system", "content": system_prompt}]
             + trimmed_history

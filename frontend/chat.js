@@ -46,10 +46,28 @@ function applyA11y(s) {
     }
 
     // Contrast
-    if (s.contrast === "high") {
+    const isHigh = s.contrast === "high";
+    if (isHigh) {
         container.setAttribute("data-contrast", "high");
     } else {
         container.removeAttribute("data-contrast");
+    }
+
+    // Update send button background in high contrast mode
+    const sendBtn = document.getElementById("send-btn");
+    if (sendBtn) {
+        sendBtn.style.setProperty("background-color", isHigh ? "#000000" : "#ffffff", "important");
+        sendBtn.style.setProperty("color", isHigh ? "#FFE800" : "#6E3061", "important");
+    }
+
+    // Update live bubble text colors immediately (before next message)
+    if (msgArea) {
+        msgArea.querySelectorAll(".agent-bubble p").forEach(p => {
+            p.style.setProperty("color", isHigh ? "#ffffff" : "#111827", "important");
+        });
+        msgArea.querySelectorAll(".user-bubble p").forEach(p => {
+            p.style.setProperty("color", isHigh ? "#ffffff" : "#f9fafb", "important");
+        });
     }
 }
 
@@ -130,7 +148,6 @@ function replaceConnecting(isError) {
     if (wrapper) wrapper.remove();
 
     if (!isError) {
-        addHistory("assistant", WELCOME);
         displayMessage("Agent", WELCOME);
     }
     // On error we leave the chat empty — the status dot turns red and
@@ -163,8 +180,17 @@ async function checkStatusAndWelcome() {
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(t);
         const data = await res.json();
-        ok = data.status === "ok" && data.python === "reachable";
-        if (dot) dot.style.backgroundColor = ok ? "#22c55e" : "#ef4444";
+        if (data.status === "ok") {
+            ok = true;
+            if (dot) dot.style.backgroundColor = "#22c55e";
+        } else if (data.status === "loading") {
+            // Backend is still initialising the embedding model — retry in 3 s
+            if (dot) dot.style.backgroundColor = "#f59e0b"; // amber
+            setTimeout(checkStatusAndWelcome, 3000);
+            return;
+        } else {
+            if (dot) dot.style.backgroundColor = "#ef4444";
+        }
     } catch {
         if (dot) dot.style.backgroundColor = "#ef4444";
     }
@@ -187,7 +213,9 @@ async function checkStatus() {
         const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
         clearTimeout(t);
         const data = await res.json();
-        dot.style.backgroundColor = (data.status === "ok" && data.python === "reachable") ? "#22c55e" : "#ef4444";
+        if (data.status === "ok") dot.style.backgroundColor = "#22c55e";
+        else if (data.status === "loading") dot.style.backgroundColor = "#f59e0b";
+        else dot.style.backgroundColor = "#ef4444";
     } catch {
         const d = document.getElementById("status-dot");
         if (d) d.style.backgroundColor = "#ef4444";
@@ -334,8 +362,12 @@ function renderQuickReplies(chips, followUpText, botContext) {
         });
         btn.addEventListener("click", () => {
             // displayText = the chip label shown in the user bubble
-            // apiText     = enriched with context so the backend understands the reply
-            const context = followUpText || botContext || "";
+            // apiText     = enriched with context so the backend understands the reply.
+            // Don't append context if botContext is the welcome message — chips
+            // rendered after the greeting are top-level topic starters, not replies.
+            const context = (botContext && botContext !== WELCOME)
+                ? (followUpText || botContext)
+                : (followUpText || "");
             const apiText = context
                 ? `${chipText} (regarding: "${context.slice(0, 120)}")`
                 : chipText;
@@ -353,6 +385,10 @@ function displayMessage(role, text) {
     const cw = document.getElementById("message-container");
     if (!cw) return;
 
+    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
+    const agentTextColor = isHigh ? "#ffffff" : "#111827";
+    const userTextColor  = isHigh ? "#ffffff" : "#f9fafb";
+
     const wrapper = document.createElement("div");
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
@@ -366,7 +402,7 @@ function displayMessage(role, text) {
         // For agent messages, parse out options/follow-ups before displaying
         if (role !== "You") {
             const { mainText, options, followUp } = parseReply(text);
-            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+            bubble.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
             wrapper.appendChild(bubble);
             const meta = document.createElement("div");
             meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
@@ -381,7 +417,7 @@ function displayMessage(role, text) {
             cw.scrollTop = cw.scrollHeight;
             return;
         } else {
-            bubble.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
+            bubble.innerHTML = `<p style="color:${userTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
         }
     }
     wrapper.appendChild(bubble);
@@ -410,11 +446,14 @@ function replaceLoadingBubble(text) {
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
 
+    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
+    const agentTextColor = isHigh ? "#ffffff" : "#111827";
+
     const { mainText, options, followUp } = parseReply(text);
 
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p style="color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
+    loader.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
 
     const meta = document.createElement("div");
     meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
@@ -622,7 +661,6 @@ function createDropdown() {
             if (m) m.innerHTML = "";
             history = [];
             _welcomed = false;
-            addHistory("assistant", WELCOME);
             displayMessage("Agent", WELCOME);
             _welcomed = true;
         }},
