@@ -21,6 +21,7 @@ import threading
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+from difflib import get_close_matches
 
 import requests
 from bs4 import BeautifulSoup
@@ -37,6 +38,8 @@ OPENAI_ORG_ID    = os.getenv("OPENAI_ORG_ID", "")
 OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 
 MODEL = "gpt-4.1-mini"
+
+FREQ_FILE = "data/frequency_table.json"
 
 ALLOWED_URLS = [
     # ── Core HR ───────────────────────────────────────────────────────────────
@@ -654,6 +657,57 @@ def ask_model(
 
     return answer
 
+os.makedirs("data", exist_ok=True)
+
+def load_frequency_table():
+    if not os.path.exists(FREQ_FILE):
+        return {}
+    with open(FREQ_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_frequency_table(table):
+    with open(FREQ_FILE, "w") as f:
+        json.dump(table, f, indent=2)
+
+
+def normalize_question(question: str) -> str:
+    return question.lower().replace("?", "").strip()
+
+
+def match_question(question: str) -> str:
+    table = load_frequency_table()
+    normalized = normalize_question(question)
+
+    if not table:
+        return normalized
+
+    matches = get_close_matches(normalized, table.keys(), n=1, cutoff=0.6)
+
+    if matches:
+        return matches[0]
+
+    return normalized
+
+
+def frequency_table(question: str) -> str:
+    """
+    Match question, update frequency count, and save.
+    """
+    table = load_frequency_table()
+
+    matched_question = match_question(question)
+
+    if matched_question in table:
+        table[matched_question] += 1
+    else:
+        table[matched_question] = 1
+
+    save_frequency_table(table)
+
+    return matched_question
+
+
 
 # ─── Flask App ────────────────────────────────────────────────────────────────
 
@@ -813,6 +867,8 @@ def health():
 def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
+    matched_q = frequency_table(message)
+    print("Saved to frequency table:", matched_q)
     history = data.get("history") or []
 
     if not message:
