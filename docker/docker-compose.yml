@@ -77,7 +77,7 @@ services:
     ports:
       - "5001:5001"
     volumes:
-      - ../data/frequency_table.json
+      - ../data:/app/data
     depends_on:
       qdrant:
         condition: service_healthy
