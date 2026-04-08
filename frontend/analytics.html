@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rammy — Analytics Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --purple:     #6e3061;
+      --purple-lt:  #f5eef8;
+      --gold:       #FFE800;
+      --gray-50:    #f9fafb;
+      --gray-100:   #f3f4f6;
+      --gray-200:   #e5e7eb;
+      --gray-500:   #6b7280;
+      --gray-800:   #1f2937;
+      --green:      #16a34a;
+      --red:        #dc2626;
+      --blue:       #2563eb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-800);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--purple);
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    header span {
+      font-size: 0.8rem;
+      opacity: 0.75;
+    }
+    .header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .header-logo {
+      width: 36px; height: 36px;
+      background: var(--gold);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    /* ── Controls bar ───────────────────────────────────── */
+    .controls {
+      background: white;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .controls label { font-size: 0.85rem; color: var(--gray-500); font-weight: 600; }
+    .controls select, .controls button {
+      padding: 0.4rem 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--gray-200);
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .controls button {
+      background: var(--purple);
+      color: white;
+      border-color: var(--purple);
+      font-weight: 700;
+    }
+    .controls button:hover { opacity: 0.9; }
+    #last-updated { margin-left: auto; font-size: 0.78rem; color: var(--gray-500); }
+
+    /* ── Main grid ──────────────────────────────────────── */
+    main { padding: 1.5rem 2rem; }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 0.75rem;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      border-left: 4px solid var(--purple);
+    }
+    .stat-card.green  { border-left-color: var(--green); }
+    .stat-card.red    { border-left-color: var(--red); }
+    .stat-card.blue   { border-left-color: var(--blue); }
+
+    .stat-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: 0.06em; color: var(--gray-500); margin-bottom: 0.4rem; }
+    .stat-value { font-size: 2rem; font-weight: 800; color: var(--gray-800); line-height: 1; }
+    .stat-sub   { font-size: 0.78rem; color: var(--gray-500); margin-top: 0.25rem; }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-row.three { grid-template-columns: 2fr 1fr; }
+
+    .card {
+      background: white;
+      border-radius: 0.75rem;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--gray-500);
+      margin-bottom: 1rem;
+    }
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Log table ──────────────────────────────────────── */
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .log-table th {
+      background: var(--gray-50);
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--gray-500);
+      border-bottom: 1px solid var(--gray-200);
+      position: sticky; top: 0;
+    }
+    .log-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--gray-100);
+      vertical-align: top;
+    }
+    .log-table tr:hover td { background: var(--gray-50); }
+    .log-wrap { max-height: 340px; overflow-y: auto; border-radius: 0.5rem;
+                border: 1px solid var(--gray-200); }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .badge-topic   { background: var(--purple-lt); color: var(--purple); }
+    .badge-web     { background: #dbeafe; color: #1d4ed8; }
+    .badge-pdf     { background: #dcfce7; color: #15803d; }
+    .badge-unknown { background: var(--gray-100); color: var(--gray-500); }
+    .badge-oos     { background: #fee2e2; color: var(--red); }
+    .badge-ok      { background: #dcfce7; color: var(--green); }
+
+    .empty {
+      text-align: center;
+      padding: 3rem;
+      color: var(--gray-500);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 900px) {
+      .stat-row { grid-template-columns: 1fr 1fr; }
+      .chart-row, .chart-row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-logo">🐏</div>
+    <h1>Rammy — Analytics Dashboard</h1>
+  </div>
+  <span id="last-updated">Loading…</span>
+</header>
+
+<div class="controls">
+  <label for="limit-select">Show last</label>
+  <select id="limit-select">
+    <option value="100">100 queries</option>
+    <option value="500">500 queries</option>
+    <option value="1000" selected>1,000 queries</option>
+    <option value="5000">5,000 queries</option>
+    <option value="99999">All time</option>
+  </select>
+  <button id="refresh-btn">↻ Refresh</button>
+</div>
+
+<main>
+
+  <!-- Stat cards -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Queries</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-sub">in selected range</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Out-of-Scope Rate</div>
+      <div class="stat-value" id="stat-oos">—</div>
+      <div class="stat-sub" id="stat-oos-count">— queries redirected</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Answered by PDF</div>
+      <div class="stat-value" id="stat-pdf">—</div>
+      <div class="stat-sub">from MinIO documents</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Answered by Web</div>
+      <div class="stat-value" id="stat-web">—</div>
+      <div class="stat-sub">from WCU/PASSHE pages</div>
+    </div>
+  </div>
+
+  <!-- Charts row 1 -->
+  <div class="chart-row">
+    <div class="card">
+      <h2>Queries by Topic</h2>
+      <div class="chart-wrap"><canvas id="topic-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Peak Usage by Hour (UTC)</h2>
+      <div class="chart-wrap"><canvas id="hourly-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts row 2 -->
+  <div class="chart-row">
+    <div class="card">
+      <h2>Source Breakdown</h2>
+      <div class="chart-wrap" style="height:160px;"><canvas id="source-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>In-Scope vs Out-of-Scope</h2>
+      <div class="chart-wrap" style="height:160px;"><canvas id="oos-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Log table -->
+  <div class="card">
+    <h2>Recent Query Log (last 50)</h2>
+    <div class="log-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Question</th>
+            <th>Topic</th>
+            <th>Source</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="5" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = "http://localhost:3000/api/analytics";
+const TOPIC_COLORS = [
+  "#6e3061","#9b59b6","#3498db","#1abc9c",
+  "#f39c12","#e74c3c","#2ecc71","#e67e22","#95a5a6","#34495e"
+];
+
+let topicChart, hourlyChart, sourceChart, oosChart;
+
+function fmtTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month:"short", day:"numeric" })
+    + " " + d.toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit" });
+}
+
+function fmtTopic(t) {
+  return (t || "other").replace(/_/g," ");
+}
+
+function destroyChart(c) { if (c) c.destroy(); }
+
+async function load() {
+  const limit = document.getElementById("limit-select").value;
+  document.getElementById("last-updated").textContent = "Refreshing…";
+
+  let data;
+  try {
+    const res = await fetch(`${API}?limit=${limit}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch(e) {
+    document.getElementById("last-updated").textContent = "Error: " + e.message;
+    document.getElementById("log-body").innerHTML =
+      `<tr><td colspan="5" class="empty">Could not reach the analytics API. Make sure the server is running.</td></tr>`;
+    return;
+  }
+
+  // ── Stat cards ─────────────────────────────────────────────────────────────
+  document.getElementById("stat-total").textContent = data.total_queries.toLocaleString();
+  document.getElementById("stat-oos").textContent   = data.oos_rate + "%";
+  document.getElementById("stat-oos-count").textContent = data.out_of_scope + " queries redirected";
+
+  const pdf = data.source_counts?.pdf || 0;
+  const web = data.source_counts?.web || 0;
+  const tot = data.total_queries || 1;
+  document.getElementById("stat-pdf").textContent = Math.round(pdf / tot * 100) + "%";
+  document.getElementById("stat-web").textContent = Math.round(web / tot * 100) + "%";
+
+  // ── Topic chart ────────────────────────────────────────────────────────────
+  const topics = Object.entries(data.topic_counts || {});
+  destroyChart(topicChart);
+  topicChart = new Chart(document.getElementById("topic-chart"), {
+    type: "bar",
+    data: {
+      labels: topics.map(([k]) => fmtTopic(k)),
+      datasets: [{
+        data: topics.map(([,v]) => v),
+        backgroundColor: TOPIC_COLORS.slice(0, topics.length),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { family: "Nunito", size: 11 } } },
+        y: { ticks: { font: { family: "Nunito", size: 11 } }, beginAtZero: true }
+      }
+    }
+  });
+
+  // ── Hourly chart ───────────────────────────────────────────────────────────
+  const hours = Array.from({length:24}, (_,i) => String(i).padStart(2,"0"));
+  const hourly = data.hourly_counts || {};
+  destroyChart(hourlyChart);
+  hourlyChart = new Chart(document.getElementById("hourly-chart"), {
+    type: "line",
+    data: {
+      labels: hours.map(h => h + ":00"),
+      datasets: [{
+        data: hours.map(h => hourly[h] || 0),
+        borderColor: "#6e3061",
+        backgroundColor: "rgba(110,48,97,0.08)",
+        tension: 0.4,
+        fill: true,
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { family: "Nunito", size: 10 }, maxTicksLimit: 12 } },
+        y: { ticks: { font: { family: "Nunito", size: 11 } }, beginAtZero: true }
+      }
+    }
+  });
+
+  // ── Source doughnut ────────────────────────────────────────────────────────
+  const srcEntries = Object.entries(data.source_counts || {});
+  destroyChart(sourceChart);
+  sourceChart = new Chart(document.getElementById("source-chart"), {
+    type: "doughnut",
+    data: {
+      labels: srcEntries.map(([k]) => k),
+      datasets: [{ data: srcEntries.map(([,v]) => v),
+        backgroundColor: ["#2563eb","#16a34a","#9ca3af"], borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:"right", labels:{ font:{ family:"Nunito", size:12 } } } }
+    }
+  });
+
+  // ── OOS doughnut ───────────────────────────────────────────────────────────
+  const inScope = (data.total_queries || 0) - (data.out_of_scope || 0);
+  destroyChart(oosChart);
+  oosChart = new Chart(document.getElementById("oos-chart"), {
+    type: "doughnut",
+    data: {
+      labels: ["In-scope","Out-of-scope"],
+      datasets: [{ data: [inScope, data.out_of_scope || 0],
+        backgroundColor: ["#16a34a","#dc2626"], borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:"right", labels:{ font:{ family:"Nunito", size:12 } } } }
+    }
+  });
+
+  // ── Log table ──────────────────────────────────────────────────────────────
+  const tbody = document.getElementById("log-body");
+  const rows = data.recent || [];
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">No queries logged yet. Start a conversation with Rammy!</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td style="white-space:nowrap;color:#6b7280;font-size:0.78rem;">${fmtTime(r.ts)}</td>
+        <td style="max-width:320px;">${r.question || "—"}</td>
+        <td><span class="badge badge-topic">${fmtTopic(r.topic)}</span></td>
+        <td><span class="badge badge-${r.source_type || 'unknown'}">${r.source_type || "unknown"}</span></td>
+        <td><span class="badge ${r.out_of_scope ? 'badge-oos' : 'badge-ok'}">${r.out_of_scope ? "redirected" : "answered"}</span></td>
+      </tr>`).join("");
+  }
+
+  document.getElementById("last-updated").textContent =
+    "Last updated: " + new Date().toLocaleTimeString();
+}
+
+document.getElementById("refresh-btn").addEventListener("click", load);
+document.getElementById("limit-select").addEventListener("change", load);
+
+load();
+setInterval(load, 60000); // auto-refresh every minute
+</script>
+</body>
+</html>
