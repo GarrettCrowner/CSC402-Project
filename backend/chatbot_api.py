@@ -39,7 +39,7 @@ OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 
 MODEL = "gpt-4.1-mini"
 
-FREQ_FILE = "data/frequency_table.json"
+FREQ_FILE = "/app/data/frequency_table.json"
 
 ALLOWED_URLS = [
     # ── Core HR ───────────────────────────────────────────────────────────────
