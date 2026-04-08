@@ -76,6 +76,8 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-documents}
     ports:
       - "5001:5001"
+    volumes:
+      - ../data/frequency_table.json
     depends_on:
       qdrant:
         condition: service_healthy
