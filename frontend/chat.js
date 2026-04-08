@@ -56,7 +56,7 @@ function applyA11y(s) {
     // Update send button background in high contrast mode
     const sendBtn = document.getElementById("send-btn");
     if (sendBtn) {
-        sendBtn.style.setProperty("background-color", isHigh ? "#000000" : "#ffffff", "important");
+        sendBtn.style.setProperty("background-color", isHigh ? "#6E3061" : "#ffffff", "important");
         sendBtn.style.setProperty("color", isHigh ? "#FFE800" : "#6E3061", "important");
     }
 
@@ -585,7 +585,7 @@ function openA11yPanel() {
         ${row("Font size", btnGroup("fontSize",
             [["small","Small"],["medium","Medium"],["large","Large"],["xlarge","X-Large"]], s.fontSize))}
         ${row("Contrast", btnGroup("contrast",
-            [["normal","Normal"],["high","High contrast"]], s.contrast))}
+            [["normal","Normal"],["high","Dark mode"]], s.contrast))}
         ${row("Window width", btnGroup("width",
             [["narrow","Narrow"],["default","Default"],["wide","Wide"]], s.width))}
         <button id="a11y-reset" style="width:100%;padding:0.4rem;font-size:0.8rem;border-radius:0.4rem;
