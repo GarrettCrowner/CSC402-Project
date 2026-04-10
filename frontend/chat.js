@@ -31,43 +31,16 @@ function saveA11y(s) {
 
 function applyA11y(s) {
     const container = document.getElementById("chat-container");
-    const msgArea   = document.getElementById("message-container");
     if (!container) return;
 
-    // Width
-    const w = WIDTH_MAP[s.width] || WIDTH_MAP.default;
-    container.style.setProperty("width", w, "important");
+    container.setAttribute("data-width", s.width);
 
-    // Font size across all message bubbles
-    const fs = FONT_MAP[s.fontSize] || FONT_MAP.medium;
-    if (msgArea) {
-        msgArea.style.setProperty("font-size", fs, "important");
-        msgArea.querySelectorAll("p").forEach(p => p.style.setProperty("font-size", fs, "important"));
-    }
+    container.setAttribute("data-font", s.fontSize);
 
-    // Contrast
-    const isHigh = s.contrast === "high";
-    if (isHigh) {
+    if (s.contrast === "high") {
         container.setAttribute("data-contrast", "high");
     } else {
         container.removeAttribute("data-contrast");
-    }
-
-    // Update send button background in high contrast mode
-    const sendBtn = document.getElementById("send-btn");
-    if (sendBtn) {
-        sendBtn.style.setProperty("background-color", isHigh ? "#6E3061" : "#ffffff", "important");
-        sendBtn.style.setProperty("color", isHigh ? "#FFE800" : "#6E3061", "important");
-    }
-
-    // Update live bubble text colors immediately (before next message)
-    if (msgArea) {
-        msgArea.querySelectorAll(".agent-bubble p").forEach(p => {
-            p.style.setProperty("color", isHigh ? "#ffffff" : "#111827", "important");
-        });
-        msgArea.querySelectorAll(".user-bubble p").forEach(p => {
-            p.style.setProperty("color", isHigh ? "#ffffff" : "#f9fafb", "important");
-        });
     }
 }
 
@@ -132,7 +105,7 @@ function showConnecting() {
     bubble.style.cssText = "opacity:0.65;font-style:italic;";
 
     const p = document.createElement("p");
-    p.style.cssText = "color:#111827;margin:0;padding:0;font-size:1rem;line-height:1.5;";
+
     p.textContent = "Attempting to connect to server…";
     bubble.appendChild(p);
 
@@ -318,14 +291,6 @@ function renderQuickReplies(chips, followUpText, botContext) {
 
     const row = document.createElement("div");
     row.className = "quick-reply-row";
-    row.style.cssText = [
-        "display:flex",
-        "flex-wrap:wrap",
-        "gap:0.4rem",
-        "padding:0.25rem 0.25rem 0.5rem 0.25rem",
-        "align-self:flex-start",
-        "max-width:95%",
-    ].join(";") + ";";
 
     // Optional: show follow-up question text as a small label above chips
     if (followUpText) {
@@ -339,18 +304,6 @@ function renderQuickReplies(chips, followUpText, botContext) {
         const btn = document.createElement("button");
         btn.className = "quick-reply-chip";
         btn.textContent = chipText;
-        btn.style.cssText = [
-            "background:white",
-            "border:1.5px solid #6e3061",
-            "border-radius:1rem",
-            "padding:0.35rem 0.75rem",
-            "font-size:0.8rem",
-            "font-family:var(--cb-font-sans,sans-serif)",
-            "color:#6e3061",
-            "cursor:pointer",
-            "transition:background 0.15s,color 0.15s",
-            "white-space:nowrap",
-        ].join(";") + ";";
 
         btn.addEventListener("mouseenter", () => {
             btn.style.background = "#6e3061";
@@ -385,56 +338,63 @@ function displayMessage(role, text) {
     const cw = document.getElementById("message-container");
     if (!cw) return;
 
-    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
-    const agentTextColor = isHigh ? "#ffffff" : "#111827";
-    const userTextColor  = isHigh ? "#ffffff" : "#f9fafb";
-
     const wrapper = document.createElement("div");
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
     const bubble = document.createElement("div");
+
     if (role === "Typing") {
         bubble.className = "agent-bubble typing-indicator";
         bubble.id = "loading-bubble";
         bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
-    } else {
-        bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
-        // For agent messages, parse out options/follow-ups before displaying
-        if (role !== "You") {
-            const { mainText, options, followUp } = parseReply(text);
-            bubble.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
-            wrapper.appendChild(bubble);
-            const meta = document.createElement("div");
-            meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
-            const name = document.createElement("span"); name.className = "profile-name"; name.textContent = "Rammy";
-            const ts = document.createElement("span"); ts.textContent = getTimestamp();
-            ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
-            meta.appendChild(name); meta.appendChild(ts);
-            wrapper.appendChild(meta);
-            cw.appendChild(wrapper);
-            // Render chips after the wrapper
-            if (options.length) renderQuickReplies(options, followUp, mainText);
-            cw.scrollTop = cw.scrollHeight;
-            return;
-        } else {
-            bubble.innerHTML = `<p style="color:${userTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(text)}</p>`;
-        }
+        wrapper.appendChild(bubble);
+        cw.appendChild(wrapper);
+        return;
     }
+
+    bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
+
+    if (role !== "You") {
+        const { mainText, options, followUp } = parseReply(text);
+
+        bubble.innerHTML = `
+            <p style="margin:0;padding:0;line-height:1.5;">
+                ${sanitizeHtml(mainText)}
+            </p>
+        `;
+
+        const name = document.createElement("div");
+        name.className = "profile-name";
+        name.textContent = "Rammy";
+
+        const ts = document.createElement("div");
+        ts.className = "timestamp";
+        ts.textContent = getTimestamp();
+
+        wrapper.appendChild(name);
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(ts);
+
+        cw.appendChild(wrapper);
+
+        if (options.length) renderQuickReplies(options, followUp, mainText);
+
+        cw.scrollTop = cw.scrollHeight;
+        return;
+    } else {
+        bubble.innerHTML = `
+            <p style="margin:0;padding:0;line-height:1.5;">
+                ${sanitizeHtml(text)}
+            </p>
+        `;
+    }
+
     wrapper.appendChild(bubble);
 
-    if (role !== "Typing") {
-        const meta = document.createElement("div");
-        meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
-        const name = document.createElement("span");
-        name.className = "profile-name";
-        name.textContent = role === "You" ? "You" : "Rammy";
-        const ts = document.createElement("span");
-        ts.textContent = getTimestamp();
-        ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
-        meta.appendChild(name);
-        meta.appendChild(ts);
-        wrapper.appendChild(meta);
-    }
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
+    ts.textContent = getTimestamp();
+    wrapper.appendChild(ts);
 
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
@@ -443,33 +403,31 @@ function displayMessage(role, text) {
 function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
+
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
-
-    const isHigh = document.getElementById("chat-container")?.getAttribute("data-contrast") === "high";
-    const agentTextColor = isHigh ? "#ffffff" : "#111827";
 
     const { mainText, options, followUp } = parseReply(text);
 
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p style="color:${agentTextColor};margin:0;padding:0;font-size:1rem;line-height:1.5;">${sanitizeHtml(mainText)}</p>`;
 
-    const meta = document.createElement("div");
-    meta.style.cssText = "display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;padding:0 0.25rem;";
-    const name = document.createElement("span");
+    loader.innerHTML = `
+        <p style="margin:0;padding:0;line-height:1.5;">
+            ${sanitizeHtml(mainText)}
+        </p>
+    `;
+    const name = document.createElement("div");
     name.className = "profile-name";
     name.textContent = "Rammy";
-    const ts = document.createElement("span");
+
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
     ts.textContent = getTimestamp();
-    ts.style.cssText = "font-size:0.6rem;color:#c4c9d4;font-family:sans-serif;font-style:italic;";
-    meta.appendChild(name);
-    meta.appendChild(ts);
-    parent.appendChild(meta);
 
-    if (cw) cw.scrollTop = 99999;
+    parent.insertBefore(name, loader);
+    parent.appendChild(ts);
 
-    // Render chips after the loading bubble is replaced
     if (options.length) renderQuickReplies(options, followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
@@ -584,8 +542,8 @@ function openA11yPanel() {
         </div>
         ${row("Font size", btnGroup("fontSize",
             [["small","Small"],["medium","Medium"],["large","Large"],["xlarge","X-Large"]], s.fontSize))}
-        ${row("Contrast", btnGroup("contrast",
-            [["normal","Normal"],["high","Dark mode"]], s.contrast))}
+        ${row("Color Mode", btnGroup("contrast",
+            [["normal","Light Mode"],["high","Dark Mode"]], s.contrast))}
         ${row("Window width", btnGroup("width",
             [["narrow","Narrow"],["default","Default"],["wide","Wide"]], s.width))}
         <button id="a11y-reset" style="width:100%;padding:0.4rem;font-size:0.8rem;border-radius:0.4rem;

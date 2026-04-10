@@ -29,6 +29,58 @@ from openai import OpenAI
 from urllib.parse import quote
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
+from difflib import get_close_matches
+
+
+GLOBAL_HISTORY = []
+MAX_HISTORY = 20
+
+FLOW_STATE = {
+    "intent": None
+}
+
+INTENT_PHRASES = {
+    "health_insurance": [
+        "health insurance",
+        "insurance eligibility",
+        "medical coverage",
+        "health benefits",
+        "do i get insurance",
+        "am i eligible for benefits",
+        "am i eligible for insurance",
+        "insurance",
+        "am i eligible for health insurance"
+    ],
+    "retirement": [
+        "retirement",
+        "pension",
+        "403b",
+        "457 plan",
+        "retirement contribution"
+    ],
+    "leave": [
+        "leave",
+        "time off",
+        "vacation",
+        "sick time",
+        "leave time",
+        "time i earn",
+        "accrual",
+        "leave accrual",
+        "vacation time",
+        "how much leave",
+        "time earned"
+    ],
+    "fsa": [
+        "fsa",
+        "flexible spending account"
+    ],
+    "seap": [
+        "seap",
+        "employee assistance program"
+    ]
+}
+
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -598,6 +650,123 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 [OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver]
 """.strip()
 
+
+# Intent
+
+
+def detect_intent(message: str) -> Optional[str]:
+    msg = message.lower()
+
+    for intent, phrases in INTENT_PHRASES.items():
+        for phrase in phrases:
+            if phrase in msg:
+                return intent
+
+        if get_close_matches(msg, phrases, n=1, cutoff=0.6):
+            return intent
+
+    return None
+
+def handle_guided_flow(message: str, history: list) -> Optional[str]:
+    global FLOW_STATE
+
+    message_lower = message.lower()
+    full_text = " ".join([m["content"].lower() for m in history])
+
+    if len(history) == 0 or not FLOW_STATE["intent"]:
+        intent = detect_intent(message)
+        if not intent:
+            return None
+        FLOW_STATE["intent"] = intent
+
+    intent = FLOW_STATE["intent"]
+
+    if intent == "health_insurance":
+
+        has_group = any(g in full_text for g in [
+            "afscme","scupa","opeiu","poa","apscuf","non-represented"
+        ])
+
+        has_type = any(t in full_text for t in [
+            "permanent", "temporary"
+        ])
+
+        has_hours = any(h in full_text for h in [
+            "full-time", "part-time"
+        ])
+
+        if not has_group:
+            return (
+                "To determine your eligibility, I’ll need a bit more information.\n"
+                "Which employee group are you in?\n"
+                "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
+            )
+
+        if not has_type:
+            return (
+                "Are you a permanent or temporary employee? \n"
+                "[OPTIONS: Permanent | Temporary]"
+            )
+
+        if not has_hours:
+
+            if "full-time" not in message_lower and "part-time" not in message_lower:
+                return (
+                    "Please choose one of the following options:\n"
+                    "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
+                )
+
+            return "Got it — are you working full-time or part-time (at least 50% of full-time hours)?"
+
+        return None
+
+
+    if intent == "retirement":
+
+        has_selection = any(option in message_lower for option in [
+            "permanent full-time",
+            "temporary",
+            "faculty",
+            "750"
+        ])
+
+        if not has_selection:
+            return (
+                "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
+                "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
+            )
+
+        return None
+
+
+    if intent == "leave":
+
+        has_group = any(g in full_text for g in [
+            "afscme","apscuf","opeiu","scupa","poa","non-represented"
+        ])
+
+        if not has_group:
+            return (
+                "I can help with that — leave benefits depend on your employee group.\n"
+                "Which group are you in?\n"
+                "[OPTIONS: AFSCME | APSCUF Coaches | APSCUF Faculty | Non-Represented | OPEIU | SCUPA | POA/SPFPA]"
+            )
+
+        return None
+
+
+    if intent == "fsa":
+        return None
+
+
+    if intent == "seap":
+        return None
+
+
+    return None
+
+
+
 # ─── Model Call ───────────────────────────────────────────────────────────────
 
 def ask_model(
@@ -883,7 +1052,8 @@ def health():
 def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
-    history = data.get("history") or []
+    global GLOBAL_HISTORY
+    history = GLOBAL_HISTORY
 
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -891,8 +1061,25 @@ def chat():
     with _cache_lock:
         current_chunks = list(_chunks)
 
+    guided_reply = handle_guided_flow(message, history)
+
+    if guided_reply:
+        GLOBAL_HISTORY.append({"role": "user", "content": message})
+        GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
+
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]  # ADD THIS
+
+        return jsonify({"reply": guided_reply})
+
     try:
         reply, tokens = ask_model(_client, message, current_chunks, history)
+        GLOBAL_HISTORY.append({"role": "user", "content": message})
+        GLOBAL_HISTORY.append({"role": "assistant", "content": reply})
+
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
+
+        FLOW_STATE["intent"] = None
+
     except Exception as e:
         print(f"[/chat] Error: {e}")
         return jsonify({"error": "Internal error — please try again."}), 500
