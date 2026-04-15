@@ -21,7 +21,6 @@ import threading
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
-from difflib import get_close_matches
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,6 +29,58 @@ from openai import OpenAI
 from urllib.parse import quote
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
+from difflib import get_close_matches
+
+
+GLOBAL_HISTORY = []
+MAX_HISTORY = 20
+
+FLOW_STATE = {
+    "intent": None
+}
+
+INTENT_PHRASES = {
+    "health_insurance": [
+        "health insurance",
+        "insurance eligibility",
+        "medical coverage",
+        "health benefits",
+        "do i get insurance",
+        "am i eligible for benefits",
+        "am i eligible for insurance",
+        "insurance",
+        "am i eligible for health insurance"
+    ],
+    "retirement": [
+        "retirement",
+        "pension",
+        "403b",
+        "457 plan",
+        "retirement contribution"
+    ],
+    "leave": [
+        "leave",
+        "time off",
+        "vacation",
+        "sick time",
+        "leave time",
+        "time i earn",
+        "accrual",
+        "leave accrual",
+        "vacation time",
+        "how much leave",
+        "time earned"
+    ],
+    "fsa": [
+        "fsa",
+        "flexible spending account"
+    ],
+    "seap": [
+        "seap",
+        "employee assistance program"
+    ]
+}
+
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -38,8 +89,6 @@ OPENAI_ORG_ID    = os.getenv("OPENAI_ORG_ID", "")
 OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 
 MODEL = "gpt-4.1-mini"
-
-FREQ_FILE = "/app/data/frequency_table.json"
 
 ALLOWED_URLS = [
     # ── Core HR ───────────────────────────────────────────────────────────────
@@ -77,6 +126,28 @@ ALLOWED_URLS = [
     # ── Employment ───────────────────────────────────────────────────────────────
     "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
     "https://www.schooljobs.com/careers/wcupa",
+    # ── Additional PASSHE Benefits pages ─────────────────────────────────────
+    # Benefits overview
+    "https://www.passhe.edu/hr/benefits/index.html",
+    # Health care
+    "https://www.passhe.edu/hr/benefits/healthcare/index.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/pebtf.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/benefits-summary.html",
+    # Insurance
+    "https://www.passhe.edu/hr/benefits/insurance/index.html",
+    "https://www.passhe.edu/hr/benefits/insurance/ltd.html",
+    # Leave / time off
+    "https://www.passhe.edu/hr/benefits/leave/index.html",
+    # Retirees
+    "https://www.passhe.edu/hr/benefits/retirees/index.html",
+    "https://www.passhe.edu/hr/benefits/retirees/prospective/index.html",
+    # Other benefits
+    "https://www.passhe.edu/hr/benefits/fsa.html",
+    "https://www.passhe.edu/hr/benefits/seap.html",
+    "https://www.passhe.edu/hr/benefits/pslf.html",
+    "https://www.passhe.edu/hr/benefits/beneficiaries.html",
+    # Payroll & schedules
+    "https://www.passhe.edu/hr/ooc/paydays-holidays.html",
     # ── External Retirement / Benefits providers ──────────────────────────────
     # These are reference URLs — included so the model can cite them even if
     # their content isn't fully scraped (many require authentication).
@@ -93,6 +164,7 @@ ANALYTICS_LOG = os.getenv("ANALYTICS_LOG", "/app/analytics.jsonl")
 _analytics_lock = threading.Lock()
 
 TOPIC_KEYWORDS: dict = {
+    "greeting":      ["hello","hi","hey","good morning","good afternoon","good evening","what can you do","help me","get started"],
     "benefits":      ["benefit","health","dental","vision","insurance","coverage","medical"],
     "retirement":    ["retire","403b","457","arp","sers","psers","tiaa","pension","deferred","tsa"],
     "payroll":       ["payroll","pay","salary","direct deposit","w-2","w-4","pay stub","paycheck"],
@@ -115,13 +187,14 @@ def classify_topic(question: str) -> str:
 
 def detect_source_type(reply: str) -> str:
     """Detect whether the answer was sourced from a PDF or a web page."""
-    if "pdf:" in reply.lower():
+    r = reply.lower()
+    if "pdf:" in r or "/api/pdf/" in r:
         return "pdf"
-    if "http" in reply:
+    if "http" in r:
         return "web"
     return "unknown"
 
-def log_interaction(question: str, reply: str, is_out_of_scope: bool) -> None:
+def log_interaction(question: str, reply: str, is_out_of_scope: bool, tokens: dict = None) -> None:
     """Append one JSONL record to the analytics log file."""
     record = {
         "ts":             datetime.now(timezone.utc).isoformat(),
@@ -130,6 +203,9 @@ def log_interaction(question: str, reply: str, is_out_of_scope: bool) -> None:
         "out_of_scope":   is_out_of_scope,
         "source_type":    detect_source_type(reply),
         "reply_length":   len(reply),
+        "tokens_prompt":      (tokens or {}).get("prompt", 0),
+        "tokens_completion":  (tokens or {}).get("completion", 0),
+        "tokens_total":       (tokens or {}).get("total", 0),
     }
     try:
         with _analytics_lock:
@@ -358,10 +434,17 @@ def build_context(question: str, chunks: object = None) -> str:
         raw_url = r.payload.get("url", "")
         # Resolve pdf: labels → real browser-accessible URLs via the Node proxy
         resolved_url = pdf_label_to_url(raw_url) if raw_url.startswith("pdf:") else raw_url
-        selected.append({"url": resolved_url, "text": r.payload.get("text", ""), "raw_url": raw_url})
+        is_pdf = raw_url.startswith("pdf:")
+        selected.append({"url": resolved_url, "text": r.payload.get("text", ""), "raw_url": raw_url, "is_pdf": is_pdf})
 
     if not selected:
         return ""
+
+    # Re-rank: prefer web sources over PDFs when both cover the topic.
+    # PDFs win only if there are no web sources in the result set.
+    has_web = any(not c["is_pdf"] for c in selected)
+    if has_web:
+        selected.sort(key=lambda c: (1 if c["is_pdf"] else 0))
 
     seen_urls: List[str] = []
     for c in selected:
@@ -420,9 +503,26 @@ def linkify_contacts(text: str) -> str:
         href = raw if raw.startswith("http") else "https://" + raw
         return f'<a href="{href}" target="_blank" rel="noopener noreferrer">{raw}</a>'
 
-    # Store pattern as variable to avoid quoting issues with single quotes
+    # Matches https://, http://, and www. URLs
     URL_BARE = re.compile(r'(?<!["\'=])((?:https?://|www\.)[\w./\-?=&#%+@!:,]+)')
     text = URL_BARE.sub(_url_link, text)
+
+    # Matches bare domains like UnitedConcordia.com or retirementatwork.org
+    def _bare_domain_link(m):
+        raw   = m.group(1)
+        start = max(0, m.start() - 20)
+        if "href=" in text[start:m.start()] or "://" in text[start:m.start()]:
+            return m.group(0)
+        return f'<a href="https://{raw}" target="_blank" rel="noopener noreferrer">{raw}</a>'
+
+    BARE_DOMAIN = re.compile(
+        r'(?<![\w@/"\'.])'
+        r'([A-Za-z0-9][A-Za-z0-9\-]*'
+        r'(?:\.[A-Za-z0-9\-]+)*'
+        r'\.(?:com|org|edu|gov|net|io|us))'
+        r'(?![\w/])'
+    )
+    text = BARE_DOMAIN.sub(_bare_domain_link, text)
     return text
 
 
@@ -481,6 +581,7 @@ You are Rammy, the West Chester University mascot and HR assistant. You are warm
 
 Rules:
 - Only answer HR-related questions using the context provided below.
+- If the user sends a short topic phrase (e.g. "Retirement plans", "Benefits & insurance", "Parking permits"), treat it as a request for a brief overview of that topic — do NOT return OUTOFSCOPE.
 - Respond naturally in 1-3 sentences. Be concise but friendly.
 {link_rule}
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
@@ -549,6 +650,103 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 [OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver]
 """.strip()
 
+
+# Intent
+
+
+def detect_intent(message: str) -> Optional[str]:
+    msg = message.lower()
+
+    for intent, phrases in INTENT_PHRASES.items():
+        for phrase in phrases:
+            if phrase in msg:
+                return intent
+
+        if get_close_matches(msg, phrases, n=1, cutoff=0.6):
+            return intent
+
+    return None
+
+def handle_guided_flow(message: str, history: list) -> Optional[str]:
+    global FLOW_STATE
+
+    message_lower = message.lower()
+    # Include the current message so chip answers are recognized immediately
+    full_text = " ".join([m["content"].lower() for m in history]) + " " + message_lower
+
+    intent = detect_intent(message)
+
+    if intent:
+        FLOW_STATE["intent"] = intent
+
+    intent = FLOW_STATE["intent"]
+
+    if intent == "health_insurance":
+
+        has_group = any(g in full_text for g in [
+            "afscme", "scupa", "opeiu", "poa", "apscuf", "non-represented"
+        ])
+        has_type = any(t in full_text for t in [
+            "permanent", "temporary"
+        ])
+        has_hours = any(h in full_text for h in [
+            "full-time", "part-time"
+        ])
+
+        if not has_group:
+            return (
+                "To determine your eligibility, I'll need a bit more information.\n"
+                "Which employee group are you in?\n"
+                "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
+            )
+        if not has_type:
+            return (
+                "Are you a permanent or temporary employee?\n"
+                "[OPTIONS: Permanent | Temporary]"
+            )
+        if not has_hours:
+            return (
+                "Are you full-time or part-time?\n"
+                "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
+            )
+
+        return None  # All info collected — fall through to ask_model
+
+    if intent == "retirement":
+
+        has_selection = any(option in full_text for option in [
+            "permanent full-time", "temporary", "faculty", "750"
+        ])
+        if not has_selection:
+            return (
+                "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
+                "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
+            )
+
+        return None
+
+    if intent == "leave":
+
+        has_group = any(g in full_text for g in [
+            "afscme", "apscuf", "opeiu", "scupa", "poa", "non-represented"
+        ])
+        if not has_group:
+            return (
+                "I can help with that — leave benefits depend on your employee group.\n"
+                "Which group are you in?\n"
+                "[OPTIONS: AFSCME | APSCUF Coaches | APSCUF Faculty | Non-Represented | OPEIU | SCUPA | POA/SPFPA]"
+            )
+
+        return None
+
+    if intent == "fsa":
+        return None
+
+    if intent == "seap":
+        return None
+
+    return None
+
 # ─── Model Call ───────────────────────────────────────────────────────────────
 
 def ask_model(
@@ -556,19 +754,30 @@ def ask_model(
     question: str,
     chunks: List[Dict[str, str]],
     history: List[Dict[str, str]],
-) -> str:
-    """Return Rammy's reply string. All routing logic lives here."""
+) -> tuple:
+    """Return (reply, tokens) where tokens = {prompt, completion, total}."""
+    _tokens = {"prompt": 0, "completion": 0, "total": 0}
+
+    def _extract_tokens(response) -> dict:
+        u = getattr(response, "usage", None)
+        if not u:
+            return {"prompt": 0, "completion": 0, "total": 0}
+        return {
+            "prompt":     getattr(u, "prompt_tokens", 0),
+            "completion": getattr(u, "completion_tokens", 0),
+            "total":      getattr(u, "total_tokens", 0),
+        }
 
     if contains_pii(question):
-        return PII_WARNING_REPLY
+        return PII_WARNING_REPLY, _tokens
 
     kind = small_talk_kind(question)
 
     if kind == "identity":
-        return IDENTITY_REPLY
+        return IDENTITY_REPLY, _tokens
 
     if kind == "meta":
-        return META_REPLY
+        return META_REPLY, _tokens
 
     if kind == "affirmative":
         # Re-surface the last assistant turn as the search query so the model
@@ -596,7 +805,8 @@ def ask_model(
                 )
                 answer = response.choices[0].message.content.strip()
                 if answer and "OUTOFSCOPE" not in answer:
-                    return answer
+                    _tokens = _extract_tokens(response)
+                    return answer, _tokens
         # No history or no context found — treat as small talk
         kind = "greeting"
 
@@ -617,7 +827,8 @@ def ask_model(
                 max_tokens=100,
                 temperature=0.8,  # Higher temp for natural variation
             )
-            return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
+            _tokens = _extract_tokens(oos_response)
+            return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY), _tokens
 
         system_prompt = build_hr_instructions(context)
         # Strip any leading assistant messages — OpenAI requires history to
@@ -641,6 +852,7 @@ def ask_model(
         temperature=0.3,   # Lower temp = more consistent, factual replies
     )
 
+    _tokens = _extract_tokens(response)
     answer = response.choices[0].message.content.strip()
     answer = linkify_contacts(answer)
 
@@ -653,60 +865,11 @@ def ask_model(
             max_tokens=100,
             temperature=0.8,
         )
-        return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY)
+        t2 = _extract_tokens(oos_response)
+        _tokens = {k: _tokens[k] + t2[k] for k in _tokens}
+        return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY), _tokens
 
-    return answer
-
-os.makedirs("data", exist_ok=True)
-
-def load_frequency_table():
-    if not os.path.exists(FREQ_FILE):
-        return {}
-    with open(FREQ_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_frequency_table(table):
-    with open(FREQ_FILE, "w") as f:
-        json.dump(table, f, indent=2)
-
-
-def normalize_question(question: str) -> str:
-    return question.lower().replace("?", "").strip()
-
-
-def match_question(question: str) -> str:
-    table = load_frequency_table()
-    normalized = normalize_question(question)
-
-    if not table:
-        return normalized
-
-    matches = get_close_matches(normalized, table.keys(), n=1, cutoff=0.6)
-
-    if matches:
-        return matches[0]
-
-    return normalized
-
-
-def frequency_table(question: str) -> str:
-    """
-    Match question, update frequency count, and save.
-    """
-    table = load_frequency_table()
-
-    matched_question = match_question(question)
-
-    if matched_question in table:
-        table[matched_question] += 1
-    else:
-        table[matched_question] = 1
-
-    save_frequency_table(table)
-
-    return matched_question
-
+    return answer, _tokens
 
 
 # ─── Flask App ────────────────────────────────────────────────────────────────
@@ -860,16 +1023,17 @@ def _load_sources() -> None:
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    if _embed_model is None or _qdrant_client is None:
+        return jsonify({"status": "loading", "python": "reachable"}), 503
+    return jsonify({"status": "ok", "python": "reachable"})
 
 
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
-    matched_q = frequency_table(message)
-    print("Saved to frequency table:", matched_q)
-    history = data.get("history") or []
+    global GLOBAL_HISTORY
+    history = GLOBAL_HISTORY
 
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -877,8 +1041,25 @@ def chat():
     with _cache_lock:
         current_chunks = list(_chunks)
 
+    guided_reply = handle_guided_flow(message, history)
+
+    if guided_reply:
+        GLOBAL_HISTORY.append({"role": "user", "content": message})
+        GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
+        return jsonify({"reply": guided_reply})
+
+    FLOW_STATE["intent"] = None
+
     try:
-        reply = ask_model(_client, message, current_chunks, history)
+        reply, tokens = ask_model(_client, message, current_chunks, history)
+        GLOBAL_HISTORY.append({"role": "user", "content": message})
+        GLOBAL_HISTORY.append({"role": "assistant", "content": reply})
+
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
+
+        FLOW_STATE["intent"] = None
+
     except Exception as e:
         print(f"[/chat] Error: {e}")
         return jsonify({"error": "Internal error — please try again."}), 500
@@ -887,7 +1068,7 @@ def chat():
         "outside", "can't help with that", "not able to", "reach out to hr",
         "hrs@wcupa", "contact hr", "610-436-2800"
     ])
-    log_interaction(message, reply, is_oos)
+    log_interaction(message, reply, is_oos, tokens)
 
     return jsonify({"reply": reply})
 
@@ -943,6 +1124,18 @@ def refresh():
     return jsonify({"message": "Source refresh started in background."})
 
 
+@app.route("/clear", methods=["POST"])
+def clear_conversation():
+    global GLOBAL_HISTORY, FLOW_STATE
+
+    GLOBAL_HISTORY.clear()
+    FLOW_STATE = {
+        "intent": None
+    }
+
+    return jsonify({"status": "cleared"})
+
+
 @app.route("/analytics", methods=["GET"])
 def analytics():
     """
@@ -976,6 +1169,13 @@ def analytics():
     source_counts: dict = {}
     hourly_counts: dict = {}
 
+    total_prompt_tokens     = 0
+    total_completion_tokens = 0
+    total_tokens            = 0
+    # gpt-4.1-mini pricing (per 1M tokens, as of 2025)
+    COST_PER_1M_PROMPT     = 0.40
+    COST_PER_1M_COMPLETION = 1.60
+
     for r in records:
         topic = r.get("topic", "other")
         topic_counts[topic] = topic_counts.get(topic, 0) + 1
@@ -991,14 +1191,27 @@ def analytics():
             except Exception:
                 pass
 
+        total_prompt_tokens     += r.get("tokens_prompt", 0)
+        total_completion_tokens += r.get("tokens_completion", 0)
+        total_tokens            += r.get("tokens_total", 0)
+
+    estimated_cost = (
+        (total_prompt_tokens     / 1_000_000) * COST_PER_1M_PROMPT +
+        (total_completion_tokens / 1_000_000) * COST_PER_1M_COMPLETION
+    )
+
     return jsonify({
-        "total_queries":    total,
-        "out_of_scope":     oos_count,
-        "oos_rate":         round(oos_count / total * 100, 1) if total else 0,
-        "topic_counts":     dict(sorted(topic_counts.items(), key=lambda x: -x[1])),
-        "source_counts":    source_counts,
-        "hourly_counts":    hourly_counts,
-        "recent":           list(reversed(records[-50:])),  # last 50, newest first
+        "total_queries":            total,
+        "out_of_scope":             oos_count,
+        "oos_rate":                 round(oos_count / total * 100, 1) if total else 0,
+        "topic_counts":             dict(sorted(topic_counts.items(), key=lambda x: -x[1])),
+        "source_counts":            source_counts,
+        "hourly_counts":            hourly_counts,
+        "recent":                   list(reversed(records[-50:])),  # last 50, newest first
+        "total_prompt_tokens":      total_prompt_tokens,
+        "total_completion_tokens":  total_completion_tokens,
+        "total_tokens":             total_tokens,
+        "estimated_cost_usd":       round(estimated_cost, 4),
     })
 
 
