@@ -582,8 +582,8 @@ function createDropdown() {
     const existing = document.getElementById("options-dropdown");
     if (existing) { existing.remove(); return; }
 
-    const header = document.getElementById("chat-header");
-    if (!header) return;
+    const container = document.getElementById("chat-container");
+    if (!container) return;
 
     const dropdown = document.createElement("div");
     dropdown.id = "options-dropdown";
@@ -618,8 +618,7 @@ function createDropdown() {
         dropdown.appendChild(btn);
     });
 
-    header.style.position = "relative";
-    header.appendChild(dropdown);
+    container.appendChild(dropdown);
 
     setTimeout(() => {
         document.addEventListener("click", function h(e) {
