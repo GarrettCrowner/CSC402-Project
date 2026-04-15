@@ -34,7 +34,6 @@ function applyA11y(s) {
     if (!container) return;
 
     container.setAttribute("data-width", s.width);
-
     container.setAttribute("data-font", s.fontSize);
 
     if (s.contrast === "high") {
@@ -105,7 +104,7 @@ function showConnecting() {
     bubble.style.cssText = "opacity:0.65;font-style:italic;";
 
     const p = document.createElement("p");
-
+    p.className = "bubble-text";
     p.textContent = "Attempting to connect to server…";
     bubble.appendChild(p);
 
@@ -295,7 +294,7 @@ function renderQuickReplies(chips, followUpText, botContext) {
     // Optional: show follow-up question text as a small label above chips
     if (followUpText) {
         const label = document.createElement("div");
-        label.style.cssText = "width:100%;font-size:0.72rem;color:#6b7280;font-family:sans-serif;font-style:italic;margin-bottom:0.15rem;padding:0 0.1rem;";
+        label.className = "quick-reply-label";
         label.textContent = followUpText;
         row.appendChild(label);
     }
@@ -304,15 +303,6 @@ function renderQuickReplies(chips, followUpText, botContext) {
         const btn = document.createElement("button");
         btn.className = "quick-reply-chip";
         btn.textContent = chipText;
-
-        btn.addEventListener("mouseenter", () => {
-            btn.style.background = "#6e3061";
-            btn.style.color = "white";
-        });
-        btn.addEventListener("mouseleave", () => {
-            btn.style.background = "white";
-            btn.style.color = "#6e3061";
-        });
         btn.addEventListener("click", () => {
             // displayText = the chip label shown in the user bubble
             // apiText     = enriched with context so the backend understands the reply.
@@ -342,59 +332,47 @@ function displayMessage(role, text) {
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
     const bubble = document.createElement("div");
-
     if (role === "Typing") {
         bubble.className = "agent-bubble typing-indicator";
         bubble.id = "loading-bubble";
         bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
-        wrapper.appendChild(bubble);
-        cw.appendChild(wrapper);
-        return;
-    }
-
-    bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
-
-    if (role !== "You") {
-        const { mainText, options, followUp } = parseReply(text);
-
-        bubble.innerHTML = `
-            <p style="margin:0;padding:0;line-height:1.5;">
-                ${sanitizeHtml(mainText)}
-            </p>
-        `;
-
-        const name = document.createElement("div");
-        name.className = "profile-name";
-        name.textContent = "Rammy";
-
-        const ts = document.createElement("div");
-        ts.className = "timestamp";
-        ts.textContent = getTimestamp();
-
-        wrapper.appendChild(name);
-        wrapper.appendChild(bubble);
-        wrapper.appendChild(ts);
-
-        cw.appendChild(wrapper);
-
-        if (options.length) renderQuickReplies(options, followUp, mainText);
-
-        cw.scrollTop = cw.scrollHeight;
-        return;
     } else {
-        bubble.innerHTML = `
-            <p style="margin:0;padding:0;line-height:1.5;">
-                ${sanitizeHtml(text)}
-            </p>
-        `;
+        bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
+        // For agent messages, parse out options/follow-ups before displaying
+        if (role !== "You") {
+            const { mainText, options, followUp } = parseReply(text);
+            bubble.innerHTML = `<p class="bubble-text">${sanitizeHtml(mainText)}</p>`;
+            wrapper.appendChild(bubble);
+            const meta = document.createElement("div");
+            meta.className = "msg-meta";
+            const name = document.createElement("span"); name.className = "profile-name"; name.textContent = "Rammy";
+            const ts = document.createElement("span"); ts.className = "timestamp"; ts.textContent = getTimestamp();
+            meta.appendChild(name); meta.appendChild(ts);
+            wrapper.appendChild(meta);
+            cw.appendChild(wrapper);
+            // Render chips after the wrapper
+            if (options.length) renderQuickReplies(options, followUp, mainText);
+            cw.scrollTop = cw.scrollHeight;
+            return;
+        } else {
+            bubble.innerHTML = `<p class="bubble-text">${sanitizeHtml(text)}</p>`;
+        }
     }
-
     wrapper.appendChild(bubble);
 
-    const ts = document.createElement("div");
-    ts.className = "timestamp";
-    ts.textContent = getTimestamp();
-    wrapper.appendChild(ts);
+    if (role !== "Typing") {
+        const meta = document.createElement("div");
+        meta.className = "msg-meta";
+        const name = document.createElement("span");
+        name.className = "profile-name";
+        name.textContent = role === "You" ? "You" : "Rammy";
+        const ts = document.createElement("span");
+        ts.className = "timestamp";
+        ts.textContent = getTimestamp();
+        meta.appendChild(name);
+        meta.appendChild(ts);
+        wrapper.appendChild(meta);
+    }
 
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
@@ -403,7 +381,6 @@ function displayMessage(role, text) {
 function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
-
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
 
@@ -411,23 +388,23 @@ function replaceLoadingBubble(text) {
 
     loader.id = "";
     loader.className = "agent-bubble";
+    loader.innerHTML = `<p class="bubble-text">${sanitizeHtml(mainText)}</p>`;
 
-    loader.innerHTML = `
-        <p style="margin:0;padding:0;line-height:1.5;">
-            ${sanitizeHtml(mainText)}
-        </p>
-    `;
-    const name = document.createElement("div");
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    const name = document.createElement("span");
     name.className = "profile-name";
     name.textContent = "Rammy";
-
-    const ts = document.createElement("div");
+    const ts = document.createElement("span");
     ts.className = "timestamp";
     ts.textContent = getTimestamp();
+    meta.appendChild(name);
+    meta.appendChild(ts);
+    parent.appendChild(meta);
 
-    parent.insertBefore(name, loader);
-    parent.appendChild(ts);
+    if (cw) cw.scrollTop = 99999;
 
+    // Render chips after the loading bubble is replaced
     if (options.length) renderQuickReplies(options, followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
@@ -542,8 +519,8 @@ function openA11yPanel() {
         </div>
         ${row("Font size", btnGroup("fontSize",
             [["small","Small"],["medium","Medium"],["large","Large"],["xlarge","X-Large"]], s.fontSize))}
-        ${row("Color Mode", btnGroup("contrast",
-            [["normal","Light Mode"],["high","Dark Mode"]], s.contrast))}
+        ${row("Contrast", btnGroup("contrast",
+            [["normal","Normal"],["high","High contrast"]], s.contrast))}
         ${row("Window width", btnGroup("width",
             [["narrow","Narrow"],["default","Default"],["wide","Wide"]], s.width))}
         <button id="a11y-reset" style="width:100%;padding:0.4rem;font-size:0.8rem;border-radius:0.4rem;
@@ -610,10 +587,9 @@ function createDropdown() {
 
     const dropdown = document.createElement("div");
     dropdown.id = "options-dropdown";
-    dropdown.style.cssText = "position:absolute!important;top:56px!important;right:12px!important;background:white!important;border-radius:0.75rem!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;overflow:hidden!important;z-index:99999!important;min-width:200px!important;";
 
     const items = [
-        { icon: "🗑️", label: "Clear conversation", fn: () => {
+        { icon: "", label: "Clear conversation", fn: () => {
             if (!confirm("Clear conversation?")) return;
             const m = document.getElementById("message-container");
             if (m) m.innerHTML = "";
@@ -622,25 +598,21 @@ function createDropdown() {
             displayMessage("Agent", WELCOME);
             _welcomed = true;
         }},
-        { icon: "🔄", label: "Refresh HR sources", fn: async () => {
+        { icon: "", label: "Refresh HR sources", fn: async () => {
             try { await fetch(`${API_BASE}/refresh`, { method: "POST" }); displayMessage("Agent", "Refreshing sources…"); }
             catch { displayMessage("Agent", "Could not refresh."); }
         }},
-        { icon: "📧", label: "Contact HR", fn: () => {
+        { icon: "", label: "Contact HR", fn: () => {
             displayMessage("Agent", `Reach WCU HR at <a href="mailto:HRS@wcupa.edu" style="color:#4a1259;">HRS@wcupa.edu</a> or <a href="tel:6104362800" style="color:#4a1259;">610-436-2800</a>.`);
         }},
-        { icon: "⚙️", label: "Accessibility", fn: () => openA11yPanel() },
+        { icon: "", label: "Accessibility", fn: () => openA11yPanel() },
     ];
 
     items.forEach(item => {
         const btn = document.createElement("button");
-        btn.style.cssText = "width:100%!important;padding:0.75rem 1rem!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:0.6rem!important;font-size:0.875rem!important;color:#374151!important;background:white!important;border:none!important;border-bottom:1px solid #f3f4f6!important;cursor:pointer!important;text-align:left!important;box-sizing:border-box!important;";
-        const ico = document.createElement("span");
-        ico.textContent = item.icon;
+        btn.className = "dropdown-item";
         const lbl = document.createElement("span");
-        lbl.style.color = "#374151";
         lbl.textContent = item.label;
-        btn.appendChild(ico);
         btn.appendChild(lbl);
         btn.addEventListener("click", () => { dropdown.remove(); item.fn(); });
         dropdown.appendChild(btn);
