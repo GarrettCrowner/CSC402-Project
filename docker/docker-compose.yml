@@ -76,8 +76,6 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-documents}
     ports:
       - "5001:5001"
-    volumes:
-      - ../data:/app/data
     depends_on:
       qdrant:
         condition: service_healthy
