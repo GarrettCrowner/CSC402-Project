@@ -175,6 +175,16 @@
   word-break: break-word !important;
 }
 
+#chat-container #chat-user-input:-webkit-autofill,
+#chat-container #chat-user-input:-webkit-autofill:hover,
+#chat-container #chat-user-input:-webkit-autofill:focus,
+#chat-container #chat-user-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #f3f4f6 inset !important;
+  -webkit-text-fill-color: var(--cb-gray-900) !important;
+  caret-color: var(--cb-gray-100) !important;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 /* ─── Message wrappers ──────────────────────────────────────── */
 #chat-container .user-msg-wrapper,
 #chat-container .agent-msg-wrapper {
