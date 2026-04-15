@@ -651,10 +651,8 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 """.strip()
 
 
-# Intent
 
-
-def detect_intent(message: str) -> Optional[str]:
+def detect_intent(message: str):
     msg = message.lower()
 
     for intent, phrases in INTENT_PHRASES.items():
@@ -667,7 +665,7 @@ def detect_intent(message: str) -> Optional[str]:
 
     return None
 
-def handle_guided_flow(message: str, history: list) -> Optional[str]:
+def handle_guided_flow(message: str, history: list):
     global FLOW_STATE
 
     message_lower = message.lower()
@@ -697,7 +695,7 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
 
         if not has_group:
             return (
-                "To determine your eligibility, I’ll need a bit more information.\n"
+                "To determine your eligibility, I'll need a bit more information.\n"
                 "Which employee group are you in?\n"
                 "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
             )
@@ -764,7 +762,6 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
 
 
     return None
-
 
 
 # ─── Model Call ───────────────────────────────────────────────────────────────
@@ -1067,7 +1064,7 @@ def chat():
         GLOBAL_HISTORY.append({"role": "user", "content": message})
         GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
 
-        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]  # ADD THIS
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
 
         return jsonify({"reply": guided_reply})
 
