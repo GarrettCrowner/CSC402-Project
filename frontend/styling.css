@@ -526,18 +526,7 @@
   background: var(--cb-gray-100);
 }
 
-/* Dropdown must always use normal colors regardless of contrast mode */
-#chat-container[data-contrast="high"] #options-dropdown {
-  background: white !important;
-}
-#chat-container[data-contrast="high"] .dropdown-item {
-  background: white !important;
-  color: var(--cb-gray-700) !important;
-}
-#chat-container[data-contrast="high"] .dropdown-item:hover {
-  background: var(--cb-gray-100) !important;
-  color: var(--cb-gray-700) !important;
-}
+
 
 /* ─── Width variants ─────────────────────────────────────────── */
 #chat-container[data-width="narrow"]  { width: 320px !important; }
