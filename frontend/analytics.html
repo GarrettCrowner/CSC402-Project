@@ -90,7 +90,7 @@
 
     .stat-row {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 1rem;
       margin-bottom: 1.5rem;
     }
@@ -170,7 +170,8 @@
       font-weight: 700;
       text-transform: capitalize;
     }
-    .badge-topic   { background: var(--purple-lt); color: var(--purple); }
+    .badge-topic    { background: var(--purple-lt); color: var(--purple); }
+    .badge-greeting { background: #fef9c3; color: #854d0e; }
     .badge-web     { background: #dbeafe; color: #1d4ed8; }
     .badge-pdf     { background: #dcfce7; color: #15803d; }
     .badge-unknown { background: var(--gray-100); color: var(--gray-500); }
@@ -184,6 +185,9 @@
       font-size: 0.9rem;
     }
 
+    @media (max-width: 1200px) {
+      .stat-row { grid-template-columns: repeat(3, 1fr); }
+    }
     @media (max-width: 900px) {
       .stat-row { grid-template-columns: 1fr 1fr; }
       .chart-row, .chart-row.three { grid-template-columns: 1fr; }
@@ -235,6 +239,16 @@
       <div class="stat-label">Answered by Web</div>
       <div class="stat-value" id="stat-web">—</div>
       <div class="stat-sub">from WCU/PASSHE pages</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#7c3aed;">
+      <div class="stat-label">Total Tokens Used</div>
+      <div class="stat-value" id="stat-tokens">—</div>
+      <div class="stat-sub" id="stat-tokens-sub">— prompt · — completion</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#0891b2;">
+      <div class="stat-label">Estimated Cost</div>
+      <div class="stat-value" id="stat-cost">—</div>
+      <div class="stat-sub">gpt-4.1-mini pricing</div>
     </div>
   </div>
 
@@ -334,6 +348,16 @@ async function load() {
   document.getElementById("stat-pdf").textContent = Math.round(pdf / tot * 100) + "%";
   document.getElementById("stat-web").textContent = Math.round(web / tot * 100) + "%";
 
+  const totalTokens = data.total_tokens || 0;
+  const promptTokens = data.total_prompt_tokens || 0;
+  const completionTokens = data.total_completion_tokens || 0;
+  document.getElementById("stat-tokens").textContent = totalTokens.toLocaleString();
+  document.getElementById("stat-tokens-sub").textContent =
+    promptTokens.toLocaleString() + " prompt · " + completionTokens.toLocaleString() + " completion";
+
+  const cost = data.estimated_cost_usd || 0;
+  document.getElementById("stat-cost").textContent = "$" + cost.toFixed(4);
+
   // ── Topic chart ────────────────────────────────────────────────────────────
   const topics = Object.entries(data.topic_counts || {});
   destroyChart(topicChart);
@@ -390,7 +414,7 @@ async function load() {
   sourceChart = new Chart(document.getElementById("source-chart"), {
     type: "doughnut",
     data: {
-      labels: srcEntries.map(([k]) => k),
+      labels: srcEntries.map(([k]) => k === 'unknown' ? 'no link' : k),
       datasets: [{ data: srcEntries.map(([,v]) => v),
         backgroundColor: ["#2563eb","#16a34a","#9ca3af"], borderWidth: 2 }]
     },
@@ -427,7 +451,7 @@ async function load() {
         <td style="white-space:nowrap;color:#6b7280;font-size:0.78rem;">${fmtTime(r.ts)}</td>
         <td style="max-width:320px;">${r.question || "—"}</td>
         <td><span class="badge badge-topic">${fmtTopic(r.topic)}</span></td>
-        <td><span class="badge badge-${r.source_type || 'unknown'}">${r.source_type || "unknown"}</span></td>
+        <td><span class="badge badge-${r.source_type || 'unknown'}">${r.source_type === 'unknown' ? 'no link' : (r.source_type || 'no link')}</span></td>
         <td><span class="badge ${r.out_of_scope ? 'badge-oos' : 'badge-ok'}">${r.out_of_scope ? "redirected" : "answered"}</span></td>
       </tr>`).join("");
   }
