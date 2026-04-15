@@ -340,12 +340,12 @@
 }
 
 #chat-container[data-contrast="high"] #send-btn {
-  background-color: var(--cb-gray-900) !important;
+  background-color: var(--cb-gray-800) !important;
   color: var(--cb-yellow) !important;
 }
 
 #chat-container[data-contrast="high"] #send-btn:hover {
-  background-color: var(--cb-gray-800) !important;
+  background-color: var(--cb-gray-900) !important;
 }
 
 
@@ -386,7 +386,7 @@
 }
 
 #chat-container[data-contrast="high"] #chat-footer {
-  background-color: var(--cb-gray-900) !important;
+  background-color: var(--cb-gray-800) !important;
 }
 
 #chat-container[data-contrast="high"] #chat-user-input {
@@ -487,6 +487,13 @@
   border: none;
   border-bottom: 1px solid var(--cb-gray-100);
   cursor: pointer;
+}
+
+ion-icons {
+  visibility: visible !important;
+  display: inline-block;
+  min-width: 1em;
+  min-height: 1em;
 }
 
 .dropdown-item:hover {
