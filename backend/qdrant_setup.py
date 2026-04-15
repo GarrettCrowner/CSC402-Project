@@ -99,6 +99,28 @@ SOURCE_URLS = [
     # Employment
     "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
     "https://www.schooljobs.com/careers/wcupa",
+    # ── Additional PASSHE Benefits pages ─────────────────────────────────────
+    # Benefits overview
+    "https://www.passhe.edu/hr/benefits/index.html",
+    # Health care
+    "https://www.passhe.edu/hr/benefits/healthcare/index.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/pebtf.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/benefits-summary.html",
+    # Insurance
+    "https://www.passhe.edu/hr/benefits/insurance/index.html",
+    "https://www.passhe.edu/hr/benefits/insurance/ltd.html",
+    # Leave / time off
+    "https://www.passhe.edu/hr/benefits/leave/index.html",
+    # Retirees
+    "https://www.passhe.edu/hr/benefits/retirees/index.html",
+    "https://www.passhe.edu/hr/benefits/retirees/prospective/index.html",
+    # Other benefits
+    "https://www.passhe.edu/hr/benefits/fsa.html",
+    "https://www.passhe.edu/hr/benefits/seap.html",
+    "https://www.passhe.edu/hr/benefits/pslf.html",
+    "https://www.passhe.edu/hr/benefits/beneficiaries.html",
+    # Payroll & schedules
+    "https://www.passhe.edu/hr/ooc/paydays-holidays.html",
     # External Retirement / Benefits providers
     # Included as reference URLs — content may be partial if sites require auth
     "https://www.tiaa.org/public/tcm/passhe/home",
