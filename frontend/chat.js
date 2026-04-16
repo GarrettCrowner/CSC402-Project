@@ -467,7 +467,6 @@ async function handleChat(displayText, apiText) {
 
 // ─── Options Dropdown ─────────────────────────────────────────────────────────
 function openA11yPanel() {
-    // Remove any existing panel
     const existing = document.getElementById("a11y-panel");
     if (existing) { existing.remove(); return; }
 
@@ -477,58 +476,37 @@ function openA11yPanel() {
 
     const panel = document.createElement("div");
     panel.id = "a11y-panel";
-    panel.style.cssText = [
-        "position:absolute!important",
-        "bottom:70px!important",
-        "right:12px!important",
-        "background:white!important",
-        "border-radius:0.75rem!important",
-        "box-shadow:0 8px 24px rgba(0,0,0,0.18)!important",
-        "z-index:99999!important",
-        "width:260px!important",
-        "padding:1rem!important",
-        "font-family:'Nunito',sans-serif!important",
-        "box-sizing:border-box!important",
-    ].join(";");
 
     function row(labelText, controlHtml) {
-        return `<div style="margin-bottom:0.85rem;">
-            <div style="font-size:0.75rem;font-weight:700;color:#6e3061;text-transform:uppercase;
-                        letter-spacing:0.05em;margin-bottom:0.35rem;">${labelText}</div>
-            ${controlHtml}
-        </div>`;
+        return `
+            <div class="a11y-row">
+                <div class="a11y-label">${labelText}</div>
+                ${controlHtml}
+            </div>
+        `;
     }
 
     function btnGroup(name, options, current) {
         return options.map(([val, lbl]) => {
             const active = val === current;
-            return `<button data-a11y="${name}" data-val="${val}"
-                style="padding:0.3rem 0.6rem;font-size:0.8rem;border-radius:0.4rem;cursor:pointer;
-                       margin-right:0.3rem;margin-bottom:0.3rem;border:1.5px solid #6e3061;
-                       background:${active ? "#6e3061" : "white"};
-                       color:${active ? "white" : "#6e3061"};
-                       font-family:'Nunito',sans-serif;">${lbl}</button>`;
+            return `<button class="a11y-btn${active ? " active" : ""}" data-a11y="${name}" data-val="${val}">${lbl}</button>`;
         }).join("");
     }
 
     panel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
-            <span style="font-weight:700;font-size:0.95rem;color:#111827;">Accessibility</span>
-            <button id="a11y-close" style="background:none;border:none;cursor:pointer;font-size:1.1rem;
-                    color:#6b7280;padding:0;line-height:1;">&#x2715;</button>
+        <div class="a11y-header">
+            <span class="a11y-title">Accessibility</span>
+            <button id="a11y-close" class="a11y-close">✕</button>
         </div>
         ${row("Font size", btnGroup("fontSize",
             [["small","Small"],["medium","Medium"],["large","Large"],["xlarge","X-Large"]], s.fontSize))}
-        ${row("Contrast", btnGroup("contrast",
-            [["normal","Normal"],["high","High contrast"]], s.contrast))}
+        ${row("Color Mode", btnGroup("contrast",
+            [["normal","Light Mode"],["high","Dark Mode"]], s.contrast))}
         ${row("Window width", btnGroup("width",
             [["narrow","Narrow"],["default","Default"],["wide","Wide"]], s.width))}
-        <button id="a11y-reset" style="width:100%;padding:0.4rem;font-size:0.8rem;border-radius:0.4rem;
-                border:1px solid #d1d5db;background:white;color:#6b7280;cursor:pointer;
-                font-family:'Nunito',sans-serif;">Reset to defaults</button>
+        <button id="a11y-reset" class="a11y-reset">Reset to default</button>
     `;
 
-    // Position relative to the chat footer
     const footer = document.getElementById("chat-footer");
     if (footer) {
         footer.style.position = "relative";
@@ -538,7 +516,6 @@ function openA11yPanel() {
         container.appendChild(panel);
     }
 
-    // Button group clicks
     panel.querySelectorAll("button[data-a11y]").forEach(btn => {
         btn.addEventListener("click", () => {
             const key = btn.getAttribute("data-a11y");
@@ -547,16 +524,13 @@ function openA11yPanel() {
             updated[key] = val;
             saveA11y(updated);
             applyA11y(updated);
-            // Refresh active states
             panel.querySelectorAll(`button[data-a11y="${key}"]`).forEach(b => {
                 const isActive = b.getAttribute("data-val") === val;
-                b.style.background = isActive ? "#6e3061" : "white";
-                b.style.color      = isActive ? "white"   : "#6e3061";
+                b.className = isActive ? "a11y-btn active" : "a11y-btn";
             });
         });
     });
 
-    // Reset
     panel.querySelector("#a11y-reset").addEventListener("click", () => {
         saveA11y(Object.assign({}, A11Y_DEFAULTS));
         applyA11y(Object.assign({}, A11Y_DEFAULTS));
@@ -564,10 +538,8 @@ function openA11yPanel() {
         openA11yPanel();
     });
 
-    // Close button
     panel.querySelector("#a11y-close").addEventListener("click", () => panel.remove());
 
-    // Close on outside click
     setTimeout(() => {
         document.addEventListener("click", function h(e) {
             if (!panel.contains(e.target)) {
