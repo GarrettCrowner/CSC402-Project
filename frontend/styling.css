@@ -74,8 +74,7 @@
 }
 
 #chat-container {
-  height: 95vh !important;
-  max-height: 95vh !important;
+  max-height: 650px !important;
 }
 
 /* ─── Header ────────────────────────────────────────────────── */
@@ -127,8 +126,8 @@
 
 /* ─── Message area ──────────────────────────────────────────── */
 #message-container {
-  height: 80vh !important;
-  max-height: 550px !important;
+  height: 500px !important;
+  max-height: 500px !important;
   background-color: var(--cb-gray-50) !important;
   padding: 1.25rem !important;
   gap: 0.75rem !important;
@@ -659,6 +658,27 @@
 }
 
 
+
+/* ─── Desktop: compact widget ───────────────────────────────── */
+#chat-container {
+  max-height: 650px !important;
+}
+
+/* ─── Mobile: full screen chat ──────────────────────────────── */
+@media (max-width: 600px) {
+  #chat-container {
+    height: 95vh !important;
+    max-height: 95vh !important;
+    width: 100% !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    border-radius: 0 !important;
+  }
+  #message-container {
+    height: 80vh !important;
+    max-height: none !important;
+  }
+}
 
 /* ─── Width variants ─────────────────────────────────────────── */
 #chat-container[data-width="narrow"]  { width: 320px !important; }
