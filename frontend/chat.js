@@ -332,47 +332,59 @@ function displayMessage(role, text) {
     wrapper.className = role === "You" ? "user-msg-wrapper" : "agent-msg-wrapper";
 
     const bubble = document.createElement("div");
+
     if (role === "Typing") {
         bubble.className = "agent-bubble typing-indicator";
         bubble.id = "loading-bubble";
         bubble.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
-    } else {
-        bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
-        // For agent messages, parse out options/follow-ups before displaying
-        if (role !== "You") {
-            const { mainText, options, followUp } = parseReply(text);
-            bubble.innerHTML = `<p class="bubble-text">${sanitizeHtml(mainText)}</p>`;
-            wrapper.appendChild(bubble);
-            const meta = document.createElement("div");
-            meta.className = "msg-meta";
-            const name = document.createElement("span"); name.className = "profile-name"; name.textContent = "Rammy";
-            const ts = document.createElement("span"); ts.className = "timestamp"; ts.textContent = getTimestamp();
-            meta.appendChild(name); meta.appendChild(ts);
-            wrapper.appendChild(meta);
-            cw.appendChild(wrapper);
-            // Render chips after the wrapper
-            if (options.length) renderQuickReplies(options, followUp, mainText);
-            cw.scrollTop = cw.scrollHeight;
-            return;
-        } else {
-            bubble.innerHTML = `<p class="bubble-text">${sanitizeHtml(text)}</p>`;
-        }
+        wrapper.appendChild(bubble);
+        cw.appendChild(wrapper);
+        return;
     }
-    wrapper.appendChild(bubble);
 
-    if (role !== "Typing") {
-        const meta = document.createElement("div");
-        meta.className = "msg-meta";
-        const name = document.createElement("span");
+    bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
+
+    if (role !== "You") {
+        const { mainText, options, followUp } = parseReply(text);
+
+        bubble.innerHTML = `
+            <p style="margin:0;padding:0;line-height:1.5;">
+                ${sanitizeHtml(mainText)}
+            </p>
+        `;
+
+        const name = document.createElement("div");
         name.className = "profile-name";
-        name.textContent = role === "You" ? "You" : "Rammy";
-        const ts = document.createElement("span");
+        name.textContent = "Rammy";
+
+        const ts = document.createElement("div");
         ts.className = "timestamp";
         ts.textContent = getTimestamp();
-        meta.appendChild(name);
-        meta.appendChild(ts);
-        wrapper.appendChild(meta);
+
+        wrapper.appendChild(name);
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(ts);
+
+        cw.appendChild(wrapper);
+
+        if (options.length) renderQuickReplies(options, followUp, mainText);
+
+        cw.scrollTop = cw.scrollHeight;
+        return;
+    } else {
+        bubble.innerHTML = `
+            <p style="margin:0;padding:0;line-height:1.5;">
+                ${sanitizeHtml(text)}
+            </p>
+        `;
     }
+
+    wrapper.appendChild(bubble);
+
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
+    ts.textContent = getTimestamp();
+    wrapper.appendChild(ts);
 
     cw.appendChild(wrapper);
     cw.scrollTop = cw.scrollHeight;
@@ -381,6 +393,7 @@ function displayMessage(role, text) {
 function replaceLoadingBubble(text) {
     const loader = document.getElementById("loading-bubble");
     if (!loader) return;
+
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
 
@@ -388,23 +401,23 @@ function replaceLoadingBubble(text) {
 
     loader.id = "";
     loader.className = "agent-bubble";
-    loader.innerHTML = `<p class="bubble-text">${sanitizeHtml(mainText)}</p>`;
 
-    const meta = document.createElement("div");
-    meta.className = "msg-meta";
-    const name = document.createElement("span");
+    loader.innerHTML = `
+        <p style="margin:0;padding:0;line-height:1.5;">
+            ${sanitizeHtml(mainText)}
+        </p>
+    `;
+    const name = document.createElement("div");
     name.className = "profile-name";
     name.textContent = "Rammy";
-    const ts = document.createElement("span");
+
+    const ts = document.createElement("div");
     ts.className = "timestamp";
     ts.textContent = getTimestamp();
-    meta.appendChild(name);
-    meta.appendChild(ts);
-    parent.appendChild(meta);
 
-    if (cw) cw.scrollTop = 99999;
+    parent.insertBefore(name, loader);
+    parent.appendChild(ts);
 
-    // Render chips after the loading bubble is replaced
     if (options.length) renderQuickReplies(options, followUp, mainText);
 
     if (cw) cw.scrollTop = 99999;
