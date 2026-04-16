@@ -306,6 +306,11 @@
   background-color: #382140 !important;
 }
 
+#chat-container[data-contrast="high"] #chat-header button:hover {
+  background-color: #42274b !important;
+}
+
+
 #chat-container[data-contrast="high"] #message-container {
   background-color: var(--cb-gray-900) !important;
 }
@@ -318,7 +323,8 @@
 }
 #chat-container[data-contrast="high"] .user-bubble {
   background: var(--cb-gray-700) !important;
-  color: #ffffff !important;
+  color: #ffffff !important; 
+  border: 1.5px var(--cb-yellow) !important;;
 }
 #chat-container[data-contrast="high"] .user-bubble p {
   color: #ffffff !important;
@@ -348,7 +354,7 @@
 }
 
 #chat-container[data-contrast="high"] #send-btn:hover {
-  background-color: var(--cb-gray-900) !important;
+  background-color: rgb(26, 36, 49) !important;
 }
 
 #chat-container[data-contrast="high"] .timestamp {
@@ -652,7 +658,7 @@
 }
 
 .dropdown-item:hover {
-  background: var(--cb-gray-100);
+  background-color: var(--cb-gray-200) !important;
 }
 
 
@@ -703,3 +709,36 @@
 #chat-container[data-font="xlarge"] .agent-bubble,
 #chat-container[data-font="xlarge"] .user-bubble,
 #chat-container[data-font="xlarge"] .bubble-text  { font-size: 1.3rem !important; }
+
+
+#message-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+#message-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#message-container::-webkit-scrollbar-thumb {
+  background: var(--cb-gray-300);
+  border-radius: 10px;
+}
+
+#chat-container[data-contrast="high"] #message-container::-webkit-scrollbar-thumb {
+  background: var(--cb-gray-700);
+}
+
+#chat-container[data-contrast="high"] #options-dropdown {
+  background: var(--cb-gray-800) !important;
+  color: var(--cb-gray-100) !important;
+}
+
+#chat-container[data-contrast="high"] .dropdown-item {
+  background: var(--cb-gray-800) !important;
+  color: var(--cb-gray-100) !important;
+  border-bottom: 1px solid var(--cb-gray-700) !important;
+}
+
+#chat-container[data-contrast="high"] .dropdown-item:hover {
+  background: var(--cb-gray-700) !important;
+}
