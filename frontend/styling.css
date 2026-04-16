@@ -307,20 +307,18 @@
 }
 
 #chat-container[data-contrast="high"] #message-container {
-  background-color: #000000 !important;
+  background-color: var(--cb-gray-900) !important;
 }
 #chat-container[data-contrast="high"] .agent-bubble {
-  background: #000000 !important;
+  background: var(--cb-gray-700) !important;
   color: #ffffff !important;
-  border: 2px solid #000000 !important;
 }
 #chat-container[data-contrast="high"] .agent-bubble p {
   color: #ffffff !important;
 }
 #chat-container[data-contrast="high"] .user-bubble {
-  background: #000000 !important;
+  background: var(--cb-gray-700) !important;
   color: #ffffff !important;
-  border: 2px solid #000000 !important;
 }
 #chat-container[data-contrast="high"] .user-bubble p {
   color: #ffffff !important;
@@ -345,12 +343,12 @@
 }
 
 #chat-container[data-contrast="high"] #send-btn {
-  background-color: var(--cb-gray-900) !important;
+  background-color: var(--cb-gray-800) !important;
   color: var(--cb-yellow) !important;
 }
 
 #chat-container[data-contrast="high"] #send-btn:hover {
-  background-color: var(--cb-gray-800) !important;
+  background-color: var(--cb-gray-900) !important;
 }
 
 #chat-container[data-contrast="high"] .timestamp {
@@ -386,7 +384,7 @@
 }
 
 #chat-container[data-contrast="high"] #chat-footer {
-  background-color: var(--cb-gray-900) !important;
+  background-color: var(--cb-gray-800) !important;
 }
 
 #chat-container[data-contrast="high"] #chat-user-input {
