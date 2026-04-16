@@ -668,16 +668,20 @@
 /* ─── Font size variants ─────────────────────────────────────── */
 #chat-container[data-font="small"]  #message-container,
 #chat-container[data-font="small"]  .agent-bubble,
-#chat-container[data-font="small"]  .user-bubble  { font-size: 0.85rem !important; }
+#chat-container[data-font="small"]  .user-bubble,
+#chat-container[data-font="small"]  .bubble-text  { font-size: 0.85rem !important; }
 
 #chat-container[data-font="medium"] #message-container,
 #chat-container[data-font="medium"] .agent-bubble,
-#chat-container[data-font="medium"] .user-bubble  { font-size: 1rem !important; }
+#chat-container[data-font="medium"] .user-bubble,
+#chat-container[data-font="medium"] .bubble-text  { font-size: 1rem !important; }
 
 #chat-container[data-font="large"]  #message-container,
 #chat-container[data-font="large"]  .agent-bubble,
-#chat-container[data-font="large"]  .user-bubble  { font-size: 1.15rem !important; }
+#chat-container[data-font="large"]  .user-bubble,
+#chat-container[data-font="large"]  .bubble-text  { font-size: 1.15rem !important; }
 
 #chat-container[data-font="xlarge"] #message-container,
 #chat-container[data-font="xlarge"] .agent-bubble,
-#chat-container[data-font="xlarge"] .user-bubble  { font-size: 1.3rem !important; }
+#chat-container[data-font="xlarge"] .user-bubble,
+#chat-container[data-font="xlarge"] .bubble-text  { font-size: 1.3rem !important; }
