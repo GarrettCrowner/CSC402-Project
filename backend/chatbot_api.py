@@ -35,8 +35,12 @@ from difflib import get_close_matches
 GLOBAL_HISTORY = []
 MAX_HISTORY = 20
 
-FLOW_STATE = {
-    "intent": None
+FLOW_PROGRESS = {
+    "intent": None,
+    "step": None,
+    "group": None,
+    "type": None,
+    "hours": None
 }
 
 INTENT_PHRASES = {
@@ -69,7 +73,21 @@ INTENT_PHRASES = {
         "leave accrual",
         "vacation time",
         "how much leave",
-        "time earned"
+        "time earned",
+        "fmla",
+        "family medical leave",
+        "family medical leave act",
+        "fmla leave",
+        "am i eligible for fmla",
+        "fmla eligibility",
+        "how does fmla work"
+    ],
+    "tuition_waiver": [
+        "tuition waiver",
+        "tuition benefit",
+        "am i eligible for tuition waiver",
+        "free classes",
+        "tuition reimbursement"
     ],
     "fsa": [
         "fsa",
@@ -79,6 +97,7 @@ INTENT_PHRASES = {
         "seap",
         "employee assistance program"
     ]
+
 }
 
 
@@ -651,84 +670,99 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 """.strip()
 
 
+# Intent
 
-def detect_intent(message: str):
-    msg = message.lower()
+
+def detect_intent(message: str) -> Optional[str]:
+    msg = message.lower().strip()
 
     for intent, phrases in INTENT_PHRASES.items():
+
         for phrase in phrases:
             if phrase in msg:
                 return intent
 
-        if get_close_matches(msg, phrases, n=1, cutoff=0.6):
+        match = get_close_matches(msg, phrases, n=1, cutoff=0.8)
+        if match:
             return intent
+
+        words = msg.split()
+        for i in range(len(words)):
+            for j in range(i + 2, min(len(words) + 1, i + 6)):
+                chunk = " ".join(words[i:j])
+                match = get_close_matches(chunk, phrases, n=1, cutoff=0.8)
+                if match:
+                    return intent
 
     return None
 
-def handle_guided_flow(message: str, history: list):
-    global FLOW_STATE
+def handle_guided_flow(message: str, history: list) -> Optional[str]:
 
+    if not isinstance(FLOW_PROGRESS, dict):
+        return None
+    
     message_lower = message.lower()
-    full_text = " ".join([m["content"].lower() for m in history])
 
-    if len(history) == 0 or not FLOW_STATE["intent"]:
-        intent = detect_intent(message)
-        if not intent:
-            return None
-        FLOW_STATE["intent"] = intent
+    intent = detect_intent(message)
 
-    intent = FLOW_STATE["intent"]
+    if not intent and FLOW_PROGRESS["intent"]:
+        intent = FLOW_PROGRESS["intent"]
+
+    if not intent:
+        return None
+
+    full_text = " ".join([m["content"].lower() for m in history] + [message_lower])
+
 
     if intent == "health_insurance":
 
-        has_group = any(g in full_text for g in [
-            "afscme","scupa","opeiu","poa","apscuf","non-represented"
-        ])
+        base_match = get_close_matches(message_lower, INTENT_PHRASES["health_insurance"], n=1, cutoff=0.5)
 
-        has_type = any(t in full_text for t in [
-            "permanent", "temporary"
-        ])
+        if base_match:
+            FLOW_PROGRESS["intent"] = "health_insurance"
+            FLOW_PROGRESS["step"] = "group"
 
-        has_hours = any(h in full_text for h in [
-            "full-time", "part-time"
-        ])
-
-        if not has_group:
             return (
-                "To determine your eligibility, I'll need a bit more information.\n"
-                "Which employee group are you in?\n"
+                "To determine your eligibility, please select your employee group:\n"
                 "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
             )
 
-        if not has_type:
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            FLOW_PROGRESS["step"] = "type"
+
             return (
-                "Are you a permanent or temporary employee? \n"
+                "Is your employment status Permanent or Temporary?\n"
                 "[OPTIONS: Permanent | Temporary]"
             )
 
-        if not has_hours:
+        if FLOW_PROGRESS["step"] == "type":
+            FLOW_PROGRESS["type"] = message_lower
+            FLOW_PROGRESS["step"] = "hours"
 
-            if "full-time" not in message_lower and "part-time" not in message_lower:
-                return (
-                    "Please choose one of the following options:\n"
-                    "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
-                )
+            return (
+                "Is your position Full-time or Part-time (at least 50% of full-time hours)?\n"
+                "[OPTIONS: Full-time | Part-time]"
+            )
 
-            return "Got it — are you working full-time or part-time (at least 50% of full-time hours)?"
+        if FLOW_PROGRESS["step"] == "hours":
+            FLOW_PROGRESS["hours"] = message_lower
 
-        return None
+            FLOW_PROGRESS.update({
+                "intent": None,
+                "step": None,
+                "group": None,
+                "type": None,
+                "hours": None
+            })
 
+            return None 
 
     if intent == "retirement":
 
-        has_selection = any(option in message_lower for option in [
-            "permanent full-time",
-            "temporary",
-            "faculty",
-            "750"
-        ])
+        base_match = get_close_matches(message_lower, INTENT_PHRASES["retirement"], n=1, cutoff=0.5)
 
-        if not has_selection:
+        if base_match:
             return (
                 "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
                 "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
@@ -736,32 +770,100 @@ def handle_guided_flow(message: str, history: list):
 
         return None
 
+    if intent == "fsa":
+        return (
+            "FSA changes depend on qualifying life events.\n"
+            "Did you experience a qualifying life event?\n"
+            "[OPTIONS: Yes | No]"
+        )
 
+
+    if intent == "seap":
+
+        base_match = get_close_matches(message_lower, INTENT_PHRASES["seap"], n=1, cutoff=0.85)
+
+        if base_match:
+            FLOW_PROGRESS["intent"] = "seap"
+            return (
+                "SEAP is available to all employees and their families.\n"
+                "Would you like access details or eligibility info?\n"
+                "[OPTIONS: Access SEAP | Eligibility Details]"
+            )
+
+
+        if FLOW_PROGRESS.get("intent") == "seap":
+            FLOW_PROGRESS["intent"] = None
+            return None
+        
+    if intent == "tuition_waiver":
+
+        base_match = get_close_matches(message_lower, INTENT_PHRASES["tuition_waiver"], n=1, cutoff=0.85)
+
+        if base_match:
+            FLOW_PROGRESS["intent"] = "tuition_waiver"
+            FLOW_PROGRESS["step"] = "group"
+
+            return (
+                "To determine your tuition waiver eligibility, please select your employee group:\n"
+                "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
+            )
+
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            FLOW_PROGRESS["step"] = "type"
+
+            return (
+                "Is your employment status Permanent or Temporary?\n"
+                "[OPTIONS: Permanent | Temporary]"
+            )
+
+        if FLOW_PROGRESS["step"] == "type":
+            FLOW_PROGRESS["type"] = message_lower
+
+            FLOW_PROGRESS.update({
+                "intent": None,
+                "step": None,
+                "group": None,
+                "type": None
+            })
+
+            return None
+        
     if intent == "leave":
 
-        has_group = any(g in full_text for g in [
-            "afscme","apscuf","opeiu","scupa","poa","non-represented"
-        ])
+        base_match = get_close_matches(message_lower, INTENT_PHRASES["leave"], n=1, cutoff=0.85)
 
-        if not has_group:
+        if base_match:
+            FLOW_PROGRESS["intent"] = "leave"
+            FLOW_PROGRESS["step"] = "group"
+
             return (
-                "I can help with that — leave benefits depend on your employee group.\n"
+                "FMLA and leave eligibility depends on your employee group.\n"
                 "Which group are you in?\n"
                 "[OPTIONS: AFSCME | APSCUF Coaches | APSCUF Faculty | Non-Represented | OPEIU | SCUPA | POA/SPFPA]"
             )
 
-        return None
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            FLOW_PROGRESS["step"] = "employment"
 
+            return (
+                "Are you a permanent or temporary employee?\n"
+                "[OPTIONS: Permanent | Temporary]"
+            )
 
-    if intent == "fsa":
-        return None
+        if FLOW_PROGRESS["step"] == "employment":
+            FLOW_PROGRESS["type"] = message_lower
 
+            FLOW_PROGRESS.update({
+                "intent": None,
+                "step": None,
+                "group": None,
+                "type": None
+            })
 
-    if intent == "seap":
-        return None
+            return None
 
-
-    return None
 
 
 # ─── Model Call ───────────────────────────────────────────────────────────────
@@ -1064,7 +1166,7 @@ def chat():
         GLOBAL_HISTORY.append({"role": "user", "content": message})
         GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
 
-        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]  # ADD THIS
 
         return jsonify({"reply": guided_reply})
 
@@ -1075,7 +1177,6 @@ def chat():
 
         GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
 
-        FLOW_STATE["intent"] = None
 
     except Exception as e:
         print(f"[/chat] Error: {e}")
