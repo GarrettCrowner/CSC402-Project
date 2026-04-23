@@ -1,4 +1,4 @@
-# Rammy — WCU HR Chatbot
+#Ask Rammy — WCU HR Chatbot
 
 Rammy is an AI-powered HR assistant for West Chester University. It answers HR-related questions using content sourced from official WCU and PASSHE HR pages, retrieved via semantic vector search and answered by OpenAI's GPT-4.1-mini.
 
