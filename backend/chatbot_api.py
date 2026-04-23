@@ -35,12 +35,8 @@ from difflib import get_close_matches
 GLOBAL_HISTORY = []
 MAX_HISTORY = 20
 
-FLOW_PROGRESS = {
-    "intent": None,
-    "step": None,
-    "group": None,
-    "type": None,
-    "hours": None
+FLOW_STATE = {
+    "intent": None
 }
 
 INTENT_PHRASES = {
@@ -68,36 +64,24 @@ INTENT_PHRASES = {
         "vacation",
         "sick time",
         "leave time",
-        "time i earn",
         "accrual",
-        "leave accrual",
         "vacation time",
         "how much leave",
         "time earned",
         "fmla",
-        "family medical leave",
-        "family medical leave act",
         "fmla leave",
-        "am i eligible for fmla",
         "fmla eligibility",
-        "how does fmla work"
+        "family medical leave",
+        "family medical leave act"
     ],
-    "tuition_waiver": [
-        "tuition waiver",
-        "tuition benefit",
-        "am i eligible for tuition waiver",
-        "free classes",
-        "tuition reimbursement"
-    ],
-    "fsa": [
-        "fsa",
-        "flexible spending account"
-    ],
+  #  "fsa": [
+   #     "fsa",
+   #     "flexible spending account"
+    #],
     "seap": [
         "seap",
         "employee assistance program"
     ]
-
 }
 
 
@@ -110,72 +94,87 @@ OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 MODEL = "gpt-4.1-mini"
 
 ALLOWED_URLS = [
-    # ── Core HR ───────────────────────────────────────────────────────────────
+    # ── Core HR ─────────────────────────────────────────────
     "https://www.wcupa.edu/hr/faqs.aspx",
     "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
     "https://www.wcupa.edu/hr/student-employment.aspx",
     "https://www.wcupa.edu/hr/professional-development.aspx",
-    # ── I-9 / Employment Verification ─────────────────────────────────────────
+    "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
+
+    # ── Employment / Applications ───────────────────────────
+    "https://www.schooljobs.com/careers/wcupa",
+
+    # ── I-9 / Verification ──────────────────────────────────
     "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
-    # ── Leave ─────────────────────────────────────────────────────────────────
+
+    # ── Leave ───────────────────────────────────────────────
     "https://www.wcupa.edu/hr/FMLA.aspx",
     "https://www.passhe.edu/hr/benefits/life-events/index.html",
-    # ── Retirement ────────────────────────────────────────────────────────────
+    "https://www.passhe.edu/hr/benefits/leave/index.html",
+
+    # ── Benefits ────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
+    "https://www.passhe.edu/hr/benefits/index.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/index.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/pebtf.html",
+    "https://www.passhe.edu/hr/benefits/healthcare/benefits-summary.html",
+    "https://www.passhe.edu/hr/benefits/insurance/index.html",
+    "https://www.passhe.edu/hr/benefits/insurance/ltd.html",
+    "https://www.passhe.edu/hr/benefits/fsa.html",
+    "https://www.passhe.edu/hr/benefits/seap.html",
+    "https://www.passhe.edu/hr/benefits/pslf.html",
+    "https://www.passhe.edu/hr/benefits/beneficiaries.html",
+
+    # ── FSA / Docs ──────────────────────────────────────────
+    "https://www.passhe.edu/hr/benefits/documents/fsa/2026-fsa-handbook.pdf",
+
+    # ── Retirement ──────────────────────────────────────────
     "https://www.passhe.edu/hr/benefits/retirement/index.html",
     "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
     "https://www.passhe.edu/hr/benefits/retirement/tsa.html",
     "https://www.passhe.edu/hr/benefits/retirement/deferred-compensation.html",
     "https://www.passhe.edu/hr/benefits/retirement/arp.html",
     "https://www.passhe.edu/hr/benefits/retirement/sers.html",
-    # ── Benefits ──────────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
-    # ── Workers Comp ──────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/work-related-injuries.aspx",
-    # ── Tuition ───────────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/tuition-waiver.aspx",
-    "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
-    # ── Payroll ───────────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
-    # ── Parking ───────────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/dps/parkingservices/parkingPermits.aspx",
-    "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
-    "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
-    # ── Holidays / Calendar ───────────────────────────────────────────────────
-    "https://www.wcupa.edu/registrar/calendar/",
-    # ── Employment ───────────────────────────────────────────────────────────────
-    "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
-    "https://www.schooljobs.com/careers/wcupa",
-    # ── Additional PASSHE Benefits pages ─────────────────────────────────────
-    # Benefits overview
-    "https://www.passhe.edu/hr/benefits/index.html",
-    # Health care
-    "https://www.passhe.edu/hr/benefits/healthcare/index.html",
-    "https://www.passhe.edu/hr/benefits/healthcare/pebtf.html",
-    "https://www.passhe.edu/hr/benefits/healthcare/benefits-summary.html",
-    # Insurance
-    "https://www.passhe.edu/hr/benefits/insurance/index.html",
-    "https://www.passhe.edu/hr/benefits/insurance/ltd.html",
-    # Leave / time off
-    "https://www.passhe.edu/hr/benefits/leave/index.html",
-    # Retirees
+
+    # ── Retirees ────────────────────────────────────────────
     "https://www.passhe.edu/hr/benefits/retirees/index.html",
     "https://www.passhe.edu/hr/benefits/retirees/prospective/index.html",
-    # Other benefits
-    "https://www.passhe.edu/hr/benefits/fsa.html",
-    "https://www.passhe.edu/hr/benefits/seap.html",
-    "https://www.passhe.edu/hr/benefits/pslf.html",
-    "https://www.passhe.edu/hr/benefits/beneficiaries.html",
-    # Payroll & schedules
-    "https://www.passhe.edu/hr/ooc/paydays-holidays.html",
-    # ── External Retirement / Benefits providers ──────────────────────────────
-    # These are reference URLs — included so the model can cite them even if
-    # their content isn't fully scraped (many require authentication).
+
+    # ── External Retirement Providers ───────────────────────
     "https://www.tiaa.org/public/tcm/passhe/home",
     "https://retirementatwork.org/wcupa/",
     "https://sers.pa.gov/members/",
     "https://www.psers.pa.gov/Members/Pages/default.aspx",
     "https://www.empower.com/public/retirement",
     "https://nb.fidelity.com/public/nb/default/home",
+    "https://www.fidelity.com",
+    "https://www.tiaa.org",
+
+    # ── Tuition ─────────────────────────────────────────────
+    "https://www.wcupa.edu/hr/tuition-waiver.aspx",
+    "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
+
+    # ── Payroll / Schedule ──────────────────────────────────
+    "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
+    "https://www.passhe.edu/hr/ooc/paydays-holidays.html",
+
+    # ── Portal / Tools ──────────────────────────────────────
+    "https://portal.passhe.edu/ijr/portal",
+
+    # ── Healthcare Providers ────────────────────────────────
+    "https://www.highmark.com/member/member-guide",
+    "https://www.aetna.com/",
+
+    # ── Employee Assistance / SEAP ──────────────────────────
+    "https://www.liveandworkwell.com",
+
+    # ── Parking ─────────────────────────────────────────────
+    "https://www.wcupa.edu/dps/parkingservices/parkingPermits.aspx",
+    "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
+    "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
+
+    # ── Calendar ────────────────────────────────────────────
+    "https://www.wcupa.edu/registrar/calendar/"
 ]
 
 # ─── Analytics Config ────────────────────────────────────────────────────────
@@ -336,10 +335,27 @@ def normalize_text(s: str) -> str:
 
 def html_to_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
+
     for tag in soup(["script", "style", "noscript", "svg", "header", "footer", "nav"]):
         tag.decompose()
-    text = normalize_text(soup.get_text("\n"))
-    return text[:150_000]  # hard cap
+
+    parts = []
+
+    for tag in soup.find_all(["p", "li", "a"]):
+        text = tag.get_text(strip=True)
+
+        if tag.name == "a" and tag.get("href"):
+            href = tag["href"]
+
+            if href.startswith("/"):
+                href = "https://www.wcupa.edu" + href
+
+            parts.append(f"{text} (Link: {href})")
+        else:
+            parts.append(text)
+
+    text = normalize_text("\n".join(parts))
+    return text[:150_000]
 
 
 # ─── Source Fetching ──────────────────────────────────────────────────────────
@@ -470,7 +486,11 @@ def build_context(question: str, chunks: object = None) -> str:
         if c["url"] and c["url"] not in seen_urls:
             seen_urls.append(c["url"])
 
-    parts = [f"Source {i}: {c['url']}\n{c['text']}" for i, c in enumerate(selected, 1)]
+    parts = [
+    f"Source {i}: {c['url']}\nContent:\n{c['text']}"
+    for i, c in enumerate(selected, 1)
+    ]
+    
     source_list = "\n".join(f"- {url}" for url in seen_urls)
     return "\n\n".join(parts) + f"\n\nAvailable source URLs:\n{source_list}"
 
@@ -560,7 +580,9 @@ def build_hr_instructions(context: str) -> str:
             "  <a href=\"https://example.com\">Learn more about retirement plans here</a>\n"
             "  or vary naturally:\n"
             "  <a href=\"https://example.com\">Visit the WCU Parking page for full details</a>\n"
-            "- Only use URLs that appear in the \'Available source URLs\' list - never invent URLs.\n"
+            "- If the context includes a specific link for an action (e.g., reset password, apply, login), ALWAYS use that direct link instead of a general page link.\n"
+            "- If a line contains '(Link: URL)', treat it as a direct actionable link and prioritize it.\n"
+            "- Prefer the most specific link available (e.g., 'Reset Password') over general pages like 'FAQs'.\n"
             "- When mentioning external provider websites (e.g. TIAA, Retirement@Work, SERS, PSERS, Empower, Fidelity),\n"
             "  always format them as HTML anchor links using the exact URL from the source list.\n"
             "  Example: <a href=\"https://retirementatwork.org/wcupa/\">Retirement@Work</a>"
@@ -673,8 +695,38 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 # Intent
 
 
+#def is_fsa_change_question(message: str) -> bool:
+ #   msg = normalize_user_input(message)
+
+  #  change_terms = [
+  #     "change", "update", "modify", "increase", "decrease",
+  #      "contribute", "contribution", "election", "enroll", "enrollment",
+  #      "mid year", "midyear", "qualifying life event", "life event"
+  #  ]
+
+ #   fsa_terms = [
+  #      "fsa", "flexible spending account", "healthcare fsa",
+  #      "dependent care fsa", "daycare fsa"
+  #  ]
+
+   # has_fsa = any(term in msg for term in fsa_terms)
+   # has_change = any(term in msg for term in change_terms)
+
+    #return has_fsa and has_change
+
+def normalize_user_input(text: str) -> str:
+    text = text.lower()
+
+    text = re.sub(r'(.)\1{2,}', r'\1', text)
+
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
+
 def detect_intent(message: str) -> Optional[str]:
-    msg = message.lower().strip()
+    msg = normalize_user_input(message)
+
+    words = msg.split()
 
     for intent, phrases in INTENT_PHRASES.items():
 
@@ -682,87 +734,87 @@ def detect_intent(message: str) -> Optional[str]:
             if phrase in msg:
                 return intent
 
-        match = get_close_matches(msg, phrases, n=1, cutoff=0.8)
-        if match:
+        if get_close_matches(msg, phrases, n=1, cutoff=0.45):
             return intent
 
-        words = msg.split()
-        for i in range(len(words)):
-            for j in range(i + 2, min(len(words) + 1, i + 6)):
-                chunk = " ".join(words[i:j])
-                match = get_close_matches(chunk, phrases, n=1, cutoff=0.8)
-                if match:
-                    return intent
+        for word in words:
+            for phrase in phrases:
+                phrase_words = phrase.split()
+
+                for p_word in phrase_words:
+                    match = get_close_matches(word, [p_word], n=1, cutoff=0.6)
+                    if match:
+                        return intent
 
     return None
 
 def handle_guided_flow(message: str, history: list) -> Optional[str]:
+    global FLOW_STATE
 
-    if not isinstance(FLOW_PROGRESS, dict):
-        return None
-    
     message_lower = message.lower()
+    full_text = (
+    " ".join([m["content"].lower() for m in history]) +
+    " " +
+    message_lower
+    )
 
     intent = detect_intent(message)
 
-    if not intent and FLOW_PROGRESS["intent"]:
-        intent = FLOW_PROGRESS["intent"]
+    if intent:
+        FLOW_STATE["intent"] = intent
 
-    if not intent:
-        return None
-
-    full_text = " ".join([m["content"].lower() for m in history] + [message_lower])
-
+    intent = FLOW_STATE["intent"]
 
     if intent == "health_insurance":
 
-        base_match = get_close_matches(message_lower, INTENT_PHRASES["health_insurance"], n=1, cutoff=0.5)
+        has_group = any(g in full_text for g in [
+            "afscme","scupa","opeiu","poa","apscuf","non-represented"
+        ])
 
-        if base_match:
-            FLOW_PROGRESS["intent"] = "health_insurance"
-            FLOW_PROGRESS["step"] = "group"
+        has_type = any(t in full_text for t in [
+            "permanent", "temporary"
+        ])
 
+        has_hours = any(h in full_text for h in [
+            "full-time", "part-time"
+        ])
+
+        if not has_group:
             return (
-                "To determine your eligibility, please select your employee group:\n"
+                "To determine your eligibility, I’ll need a bit more information.\n"
+                "Which employee group are you in?\n"
                 "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
             )
 
-        if FLOW_PROGRESS["step"] == "group":
-            FLOW_PROGRESS["group"] = message_lower
-            FLOW_PROGRESS["step"] = "type"
-
+        if not has_type:
             return (
-                "Is your employment status Permanent or Temporary?\n"
+                "Are you a permanent or temporary employee? \n"
                 "[OPTIONS: Permanent | Temporary]"
             )
 
-        if FLOW_PROGRESS["step"] == "type":
-            FLOW_PROGRESS["type"] = message_lower
-            FLOW_PROGRESS["step"] = "hours"
+        if not has_hours:
 
-            return (
-                "Is your position Full-time or Part-time (at least 50% of full-time hours)?\n"
-                "[OPTIONS: Full-time | Part-time]"
-            )
+            if "full-time" not in message_lower and "part-time" not in message_lower:
+                return (
+                    "Please choose one of the following options:\n"
+                    "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
+                )
 
-        if FLOW_PROGRESS["step"] == "hours":
-            FLOW_PROGRESS["hours"] = message_lower
+            return "Got it — are you working full-time or part-time (at least 50% of full-time hours)?"
 
-            FLOW_PROGRESS.update({
-                "intent": None,
-                "step": None,
-                "group": None,
-                "type": None,
-                "hours": None
-            })
+        return None
 
-            return None 
 
     if intent == "retirement":
 
-        base_match = get_close_matches(message_lower, INTENT_PHRASES["retirement"], n=1, cutoff=0.5)
+        has_selection = any(option in message_lower for option in [
+            "permanent full-time",
+            "temporary",
+            "faculty",
+            "750"
+        ])
 
-        if base_match:
+        if not has_selection:
             return (
                 "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
                 "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
@@ -770,99 +822,49 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
 
         return None
 
-    if intent == "fsa":
-        return (
-            "FSA changes depend on qualifying life events.\n"
-            "Did you experience a qualifying life event?\n"
-            "[OPTIONS: Yes | No]"
-        )
 
-
-    if intent == "seap":
-
-        base_match = get_close_matches(message_lower, INTENT_PHRASES["seap"], n=1, cutoff=0.85)
-
-        if base_match:
-            FLOW_PROGRESS["intent"] = "seap"
-            return (
-                "SEAP is available to all employees and their families.\n"
-                "Would you like access details or eligibility info?\n"
-                "[OPTIONS: Access SEAP | Eligibility Details]"
-            )
-
-
-        if FLOW_PROGRESS.get("intent") == "seap":
-            FLOW_PROGRESS["intent"] = None
-            return None
-        
-    if intent == "tuition_waiver":
-
-        base_match = get_close_matches(message_lower, INTENT_PHRASES["tuition_waiver"], n=1, cutoff=0.85)
-
-        if base_match:
-            FLOW_PROGRESS["intent"] = "tuition_waiver"
-            FLOW_PROGRESS["step"] = "group"
-
-            return (
-                "To determine your tuition waiver eligibility, please select your employee group:\n"
-                "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
-            )
-
-        if FLOW_PROGRESS["step"] == "group":
-            FLOW_PROGRESS["group"] = message_lower
-            FLOW_PROGRESS["step"] = "type"
-
-            return (
-                "Is your employment status Permanent or Temporary?\n"
-                "[OPTIONS: Permanent | Temporary]"
-            )
-
-        if FLOW_PROGRESS["step"] == "type":
-            FLOW_PROGRESS["type"] = message_lower
-
-            FLOW_PROGRESS.update({
-                "intent": None,
-                "step": None,
-                "group": None,
-                "type": None
-            })
-
-            return None
-        
     if intent == "leave":
 
-        base_match = get_close_matches(message_lower, INTENT_PHRASES["leave"], n=1, cutoff=0.85)
+        has_hours = any(h in full_text for h in [
+            "full-time", "part-time"
+        ])
 
-        if base_match:
-            FLOW_PROGRESS["intent"] = "leave"
-            FLOW_PROGRESS["step"] = "group"
-
+        has_group = any(g in full_text for g in [
+            "afscme","apscuf","opeiu","scupa","poa","non-represented"
+        ])
+        
+        if not has_hours:
             return (
-                "FMLA and leave eligibility depends on your employee group.\n"
+                "Please choose one of the following options:\n"
+                "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
+            )
+        
+        if not has_group:
+            return (
+                "I can help with that — leave benefits depend on your employee group.\n"
                 "Which group are you in?\n"
                 "[OPTIONS: AFSCME | APSCUF Coaches | APSCUF Faculty | Non-Represented | OPEIU | SCUPA | POA/SPFPA]"
             )
 
-        if FLOW_PROGRESS["step"] == "group":
-            FLOW_PROGRESS["group"] = message_lower
-            FLOW_PROGRESS["step"] = "employment"
+        return None
 
-            return (
-                "Are you a permanent or temporary employee?\n"
-                "[OPTIONS: Permanent | Temporary]"
-            )
 
-        if FLOW_PROGRESS["step"] == "employment":
-            FLOW_PROGRESS["type"] = message_lower
+    #if intent == "fsa":
+        #if is_fsa_change_question(message):
+        #    if "yes" not in message_lower and "no" not in message_lower:
+        #        return (
+       #             "FSA changes can usually only be made if you had a qualifying life event.\n"
+        #            "Did you experience a qualifying life event?\n"
+         #           "[OPTIONS: Yes | No]"
+        #        )
+     #   return None
 
-            FLOW_PROGRESS.update({
-                "intent": None,
-                "step": None,
-                "group": None,
-                "type": None
-            })
 
-            return None
+    if intent == "seap":
+        return None
+
+
+    return None
 
 
 
@@ -1177,6 +1179,7 @@ def chat():
 
         GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
 
+        FLOW_STATE["intent"] = None
 
     except Exception as e:
         print(f"[/chat] Error: {e}")
