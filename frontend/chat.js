@@ -5,7 +5,8 @@
 const API_BASE = "http://localhost:3000/api";
 
 let _closing = false;
-const WELCOME = "Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?";
+const WELCOME = `Hi, my name is Rammy. I am here to help with all of your HR questions! What would you like to know?
+[OPTIONS: Benefits & insurance | Retirement plans | Payroll & pay stubs | Leave & FMLA | Parking permits | Tuition waiver]`;
 
 // ─── History ──────────────────────────────────────────────────────────────────
 let history = [];
@@ -308,12 +309,18 @@ function renderQuickReplies(chips, followUpText, botContext) {
             // apiText     = enriched with context so the backend understands the reply.
             // Don't append context if botContext is the welcome message — chips
             // rendered after the greeting are top-level topic starters, not replies.
-            const context = (botContext && botContext !== WELCOME)
+            const isWelcomeChip =
+                botContext &&
+                botContext.includes("Hi, my name is Rammy");
+
+            const context = (!isWelcomeChip && botContext)
                 ? (followUpText || botContext)
-                : (followUpText || "");
+                : "";
+
             const apiText = context
                 ? `${chipText} (regarding: "${context.slice(0, 120)}")`
                 : chipText;
+
             handleChat(chipText, apiText);
         });
         row.appendChild(btn);
@@ -321,6 +328,48 @@ function renderQuickReplies(chips, followUpText, botContext) {
 
     cw.appendChild(row);
     cw.scrollTop = cw.scrollHeight;
+}
+
+function getFallbackOptions(mainText) {
+    const text = String(mainText || "").toLowerCase();
+
+    if (
+        text.includes("having trouble connecting") ||
+        text.includes("attempting to connect") ||
+        text.includes("for your privacy")
+    ) {
+        return [];
+    }
+
+    if (text.includes("retirement") || text.includes("403") || text.includes("457") || text.includes("sers") || text.includes("arp")) {
+        return ["SERS pension plan", "ARP plan", "Voluntary 403(b)/457 plans"];
+    }
+
+    if (text.includes("benefit") || text.includes("insurance") || text.includes("healthcare") || text.includes("medical")) {
+        return ["Health insurance eligibility", "Benefits by employee group", "FSA information"];
+    }
+
+    if (text.includes("leave") || text.includes("fmla") || text.includes("time off") || text.includes("vacation") || text.includes("sick")) {
+        return ["FMLA eligibility", "Leave time eligibility", "Vacation and sick time"];
+    }
+
+    if (text.includes("payroll") || text.includes("pay stub") || text.includes("paycheck") || text.includes("direct deposit")) {
+        return ["Pay stubs", "Direct deposit", "Payroll calendar"];
+    }
+
+    if (text.includes("parking") || text.includes("permit")) {
+        return ["Parking permits", "Employee parking rules", "Parking FAQs"];
+    }
+
+    if (text.includes("tuition")) {
+        return ["Tuition waiver eligibility", "Tuition reimbursement", "Dependent tuition benefits"];
+    }
+
+    if (text.includes("fsa") || text.includes("flexible spending")) {
+        return ["Healthcare FSA", "Dependent Care FSA"];
+    }
+
+    return ["Benefits & insurance", "Retirement plans", "Leave & FMLA"];
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────
@@ -345,7 +394,11 @@ function displayMessage(role, text) {
     bubble.className = role === "You" ? "user-bubble" : "agent-bubble";
 
     if (role !== "You") {
-        const { mainText, options, followUp } = parseReply(text);
+        let { mainText, options, followUp } = parseReply(text);
+
+        if (!options.length) {
+            options = getFallbackOptions(mainText);
+        }
 
         bubble.innerHTML = `
             <p style="margin:0;padding:0;line-height:1.5;">
@@ -397,7 +450,11 @@ function replaceLoadingBubble(text) {
     const parent = loader.parentElement;
     const cw = document.getElementById("message-container");
 
-    const { mainText, options, followUp } = parseReply(text);
+    let { mainText, options, followUp } = parseReply(text);
+
+    if (!options.length) {
+        options = getFallbackOptions(mainText);
+    }
 
     loader.id = "";
     loader.className = "agent-bubble";
