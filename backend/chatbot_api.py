@@ -35,55 +35,73 @@ from difflib import get_close_matches
 GLOBAL_HISTORY = []
 MAX_HISTORY = 20
 
-FLOW_STATE = {
-    "intent": None
+# ─── Guided Eligibility Flow State ────────────────────────────────────────────
+
+GLOBAL_HISTORY = []
+MAX_HISTORY = 20
+
+FLOW_PROGRESS = {
+    "intent": None,
+    "step": None,
+    "group": None,
+    "type": None,
+    "hours": None
 }
 
 INTENT_PHRASES = {
     "health_insurance": [
         "health insurance",
-        "insurance eligibility",
+        "insurance",
         "medical coverage",
         "health benefits",
-        "do i get insurance",
-        "am i eligible for benefits",
-        "am i eligible for insurance",
-        "insurance",
-        "am i eligible for health insurance"
+        "benefits",
+        "healthcare"
     ],
     "retirement": [
         "retirement",
+        "retire",
         "pension",
         "403b",
+        "403 b",
+        "457",
         "457 plan",
-        "retirement contribution"
+        "retirement contribution",
+        "sers",
+        "psers",
+        "arp"
     ],
     "leave": [
         "leave",
+        "leave time",
         "time off",
         "vacation",
-        "sick time",
-        "leave time",
-        "accrual",
         "vacation time",
-        "how much leave",
-        "time earned",
+        "sick time",
+        "sick leave",
+        "leave accrual",
+        "accrual",
+        "time earned"
+    ],
+    "fmla": [
         "fmla",
         "fmla leave",
-        "fmla eligibility",
         "family medical leave",
         "family medical leave act"
     ],
-  #  "fsa": [
-   #     "fsa",
-   #     "flexible spending account"
-    #],
-    "seap": [
-        "seap",
-        "employee assistance program"
+    "fsa": [
+        "fsa",
+        "flexible spending account",
+        "healthcare fsa",
+        "dependent care fsa",
+        "daycare fsa"
+    ],
+    "tuition_waiver": [
+        "tuition waiver",
+        "tuition benefit",
+        "free classes",
+        "tuition reimbursement"
     ]
 }
-
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -694,175 +712,232 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 
 # Intent
 
-
-#def is_fsa_change_question(message: str) -> bool:
- #   msg = normalize_user_input(message)
-
-  #  change_terms = [
-  #     "change", "update", "modify", "increase", "decrease",
-  #      "contribute", "contribution", "election", "enroll", "enrollment",
-  #      "mid year", "midyear", "qualifying life event", "life event"
-  #  ]
-
- #   fsa_terms = [
-  #      "fsa", "flexible spending account", "healthcare fsa",
-  #      "dependent care fsa", "daycare fsa"
-  #  ]
-
-   # has_fsa = any(term in msg for term in fsa_terms)
-   # has_change = any(term in msg for term in change_terms)
-
-    #return has_fsa and has_change
+# ─── Guided Flow Helpers ─────────────────────────────────────────────────────
 
 def normalize_user_input(text: str) -> str:
     text = text.lower()
-
     text = re.sub(r'(.)\1{2,}', r'\1', text)
-
+    text = re.sub(r'[^a-z0-9\s\-/]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
-
     return text
+
+
+def strip_regarding_context(text: str) -> str:
+    """
+    The frontend sends chip clicks like:
+    AFSCME (regarding: "To determine your health insurance eligibility...")
+    
+    For flow detection, only use the actual chip answer.
+    Otherwise the word 'eligibility' inside the regarding text can restart the flow.
+    """
+    return text.split("(regarding:", 1)[0].strip()
+
+
+ELIGIBILITY_WORDS = [
+    "eligible",
+    "eligibility",
+    "qualify",
+    "qualified",
+    "qualification",
+    "qualifies",
+    "do i qualify",
+    "can i qualify",
+    "am i eligible",
+    "am i able",
+    "am i allowed"
+]
+
+
+def has_eligibility_language(message: str) -> bool:
+    msg = normalize_user_input(message)
+    words = msg.split()
+
+    for phrase in ELIGIBILITY_WORDS:
+        if phrase in msg:
+            return True
+
+    # Misspelling support: eligble, elgiible, eligiblity, qualfy, etc.
+    fuzzy_words = [
+        "eligible",
+        "eligibility",
+        "qualify",
+        "qualified",
+        "qualification"
+    ]
+
+    for word in words:
+        if get_close_matches(word, fuzzy_words, n=1, cutoff=0.70):
+            return True
+
+    return False
+
 
 def detect_intent(message: str) -> Optional[str]:
     msg = normalize_user_input(message)
 
-    words = msg.split()
+    intent_order = ["fmla", "health_insurance", "retirement", "leave", "fsa", "tuition_waiver"]
 
-    for intent, phrases in INTENT_PHRASES.items():
+    for intent in intent_order:
+        phrases = INTENT_PHRASES.get(intent, [])
 
         for phrase in phrases:
-            if phrase in msg:
+            phrase_norm = normalize_user_input(phrase)
+
+            if phrase_norm in msg:
                 return intent
 
-        if get_close_matches(msg, phrases, n=1, cutoff=0.45):
-            return intent
-
-        for word in words:
-            for phrase in phrases:
-                phrase_words = phrase.split()
-
-                for p_word in phrase_words:
-                    match = get_close_matches(word, [p_word], n=1, cutoff=0.6)
-                    if match:
-                        return intent
+            # Good for misspellings like "health insuranc"
+            if get_close_matches(msg, [phrase_norm], n=1, cutoff=0.72):
+                return intent
 
     return None
 
+
+def reset_flow():
+    FLOW_PROGRESS.update({
+        "intent": None,
+        "step": None,
+        "group": None,
+        "type": None,
+        "hours": None
+    })
+
 def handle_guided_flow(message: str, history: list) -> Optional[str]:
-    global FLOW_STATE
+    if not isinstance(FLOW_PROGRESS, dict):
+        return None
 
-    message_lower = message.lower()
-    full_text = (
-    " ".join([m["content"].lower() for m in history]) +
-    " " +
-    message_lower
-    )
+    user_text = strip_regarding_context(message)
+    message_lower = normalize_user_input(user_text)
 
-    intent = detect_intent(message)
+    incoming_intent = detect_intent(user_text)
+    asking_eligibility = has_eligibility_language(user_text)
 
-    if intent:
-        FLOW_STATE["intent"] = intent
+    eligibility_intents = {
+        "health_insurance",
+        "retirement",
+        "leave",
+        "fmla",
+        "fsa"
+    }
 
-    intent = FLOW_STATE["intent"]
+    if asking_eligibility and incoming_intent in eligibility_intents:
+        reset_flow()
+        FLOW_PROGRESS["intent"] = incoming_intent
+        FLOW_PROGRESS["step"] = None
 
+    if not FLOW_PROGRESS.get("intent"):
+        return None
+
+    intent = FLOW_PROGRESS["intent"]
+
+    if asking_eligibility and incoming_intent and incoming_intent != intent:
+        reset_flow()
+        FLOW_PROGRESS["intent"] = incoming_intent
+        FLOW_PROGRESS["step"] = None
+        intent = incoming_intent
+
+    # ─── Health Insurance Eligibility ────────────────────────────────────────
     if intent == "health_insurance":
-
-        has_group = any(g in full_text for g in [
-            "afscme","scupa","opeiu","poa","apscuf","non-represented"
-        ])
-
-        has_type = any(t in full_text for t in [
-            "permanent", "temporary"
-        ])
-
-        has_hours = any(h in full_text for h in [
-            "full-time", "part-time"
-        ])
-
-        if not has_group:
+        if FLOW_PROGRESS["step"] is None:
+            FLOW_PROGRESS["step"] = "group"
             return (
-                "To determine your eligibility, I’ll need a bit more information.\n"
+                "To determine your health insurance eligibility, I’ll need a bit more information.\n"
                 "Which employee group are you in?\n"
                 "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
             )
 
-        if not has_type:
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            FLOW_PROGRESS["step"] = "type"
             return (
-                "Are you a permanent or temporary employee? \n"
+                "Are you a permanent or temporary employee?\n"
                 "[OPTIONS: Permanent | Temporary]"
             )
 
-        if not has_hours:
+        if FLOW_PROGRESS["step"] == "type":
+            FLOW_PROGRESS["type"] = message_lower
+            FLOW_PROGRESS["step"] = "hours"
+            return (
+                "Are you full-time or part-time?\n"
+                "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
+            )
 
-            if "full-time" not in message_lower and "part-time" not in message_lower:
-                return (
-                    "Please choose one of the following options:\n"
-                    "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
-                )
+        if FLOW_PROGRESS["step"] == "hours":
+            FLOW_PROGRESS["hours"] = message_lower
+            reset_flow()
+            return None
 
-            return "Got it — are you working full-time or part-time (at least 50% of full-time hours)?"
-
-        return None
-
-
+    # ─── Retirement Eligibility ──────────────────────────────────────────────
     if intent == "retirement":
-
-        has_selection = any(option in message_lower for option in [
-            "permanent full-time",
-            "temporary",
-            "faculty",
-            "750"
-        ])
-
-        if not has_selection:
+        if FLOW_PROGRESS["step"] is None:
+            FLOW_PROGRESS["step"] = "retirement_status"
             return (
                 "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
                 "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
             )
 
-        return None
+        if FLOW_PROGRESS["step"] == "retirement_status":
+            FLOW_PROGRESS["type"] = message_lower
+            reset_flow()
+            return None
 
-
+    # ─── Leave Time Eligibility ──────────────────────────────────────────────
     if intent == "leave":
-
-        has_hours = any(h in full_text for h in [
-            "full-time", "part-time"
-        ])
-
-        has_group = any(g in full_text for g in [
-            "afscme","apscuf","opeiu","scupa","poa","non-represented"
-        ])
-        
-        if not has_hours:
+        if FLOW_PROGRESS["step"] is None:
+            FLOW_PROGRESS["step"] = "hours"
             return (
-                "Please choose one of the following options:\n"
+                "To determine your leave time eligibility, are you full-time or part-time?\n"
                 "[OPTIONS: Full-time | Part-time (at least 50% of full-time hours)]"
             )
-        
-        if not has_group:
+
+        if FLOW_PROGRESS["step"] == "hours":
+            FLOW_PROGRESS["hours"] = message_lower
+            FLOW_PROGRESS["step"] = "group"
             return (
-                "I can help with that — leave benefits depend on your employee group.\n"
-                "Which group are you in?\n"
+                "Leave benefits can depend on your employee group. Which group are you in?\n"
                 "[OPTIONS: AFSCME | APSCUF Coaches | APSCUF Faculty | Non-Represented | OPEIU | SCUPA | POA/SPFPA]"
             )
 
-        return None
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            reset_flow()
+            return None
 
+    # ─── FMLA Eligibility ────────────────────────────────────────────────────
+    if intent == "fmla":
+        if FLOW_PROGRESS["step"] is None:
+            FLOW_PROGRESS["step"] = "group"
+            return (
+                "To determine your FMLA eligibility, which employee group are you in?\n"
+                "[OPTIONS: AFSCME/SEIU/SPFPA/POA | APSCUF Faculty/Coaches | SCUPA | OPEIU | Non-Represented]"
+            )
 
-    #if intent == "fsa":
-        #if is_fsa_change_question(message):
-        #    if "yes" not in message_lower and "no" not in message_lower:
-        #        return (
-       #             "FSA changes can usually only be made if you had a qualifying life event.\n"
-        #            "Did you experience a qualifying life event?\n"
-         #           "[OPTIONS: Yes | No]"
-        #        )
-     #   return None
+        if FLOW_PROGRESS["step"] == "group":
+            FLOW_PROGRESS["group"] = message_lower
+            FLOW_PROGRESS["step"] = "time_worked"
+            return (
+                "Have you worked for at least one year and worked 1,250 hours in the past 12 months?\n"
+                "[OPTIONS: Yes | No | Not sure]"
+            )
 
+        if FLOW_PROGRESS["step"] == "time_worked":
+            FLOW_PROGRESS["hours"] = message_lower
+            reset_flow()
+            return None
 
-    if intent == "seap":
-        return None
+    # ─── FSA Eligibility ─────────────────────────────────────────────────────
+    if intent == "fsa":
+        if FLOW_PROGRESS["step"] is None:
+            FLOW_PROGRESS["step"] = "fsa_type"
+            return (
+                "Which FSA are you asking about eligibility for?\n"
+                "[OPTIONS: Healthcare FSA | Dependent Care FSA]"
+            )
 
+        if FLOW_PROGRESS["step"] == "fsa_type":
+            FLOW_PROGRESS["type"] = message_lower
+            reset_flow()
+            return None
 
     return None
 
@@ -1168,7 +1243,7 @@ def chat():
         GLOBAL_HISTORY.append({"role": "user", "content": message})
         GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
 
-        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]  # ADD THIS
+        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
 
         return jsonify({"reply": guided_reply})
 
@@ -1178,8 +1253,6 @@ def chat():
         GLOBAL_HISTORY.append({"role": "assistant", "content": reply})
 
         GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
-
-        FLOW_STATE["intent"] = None
 
     except Exception as e:
         print(f"[/chat] Error: {e}")
