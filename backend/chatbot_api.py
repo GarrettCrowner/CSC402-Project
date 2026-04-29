@@ -37,9 +37,6 @@ MAX_HISTORY = 20
 
 # ─── Guided Eligibility Flow State ────────────────────────────────────────────
 
-GLOBAL_HISTORY = []
-MAX_HISTORY = 20
-
 FLOW_PROGRESS = {
     "intent": None,
     "step": None,
@@ -1228,8 +1225,16 @@ def health():
 def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
-    global GLOBAL_HISTORY
-    history = GLOBAL_HISTORY
+
+    # Prefer client-sent history (the frontend is the source of truth for
+    # conversation context). Fall back to GLOBAL_HISTORY only if the client
+    # did not send any — e.g. during a /refresh ping or legacy callers.
+    client_history = data.get("history")
+    if isinstance(client_history, list) and client_history:
+        history = client_history[-MAX_HISTORY:]
+    else:
+        global GLOBAL_HISTORY
+        history = GLOBAL_HISTORY
 
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -1240,20 +1245,10 @@ def chat():
     guided_reply = handle_guided_flow(message, history)
 
     if guided_reply:
-        GLOBAL_HISTORY.append({"role": "user", "content": message})
-        GLOBAL_HISTORY.append({"role": "assistant", "content": guided_reply})
-
-        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
-
         return jsonify({"reply": guided_reply})
 
     try:
         reply, tokens = ask_model(_client, message, current_chunks, history)
-        GLOBAL_HISTORY.append({"role": "user", "content": message})
-        GLOBAL_HISTORY.append({"role": "assistant", "content": reply})
-
-        GLOBAL_HISTORY = GLOBAL_HISTORY[-MAX_HISTORY:]
-
     except Exception as e:
         print(f"[/chat] Error: {e}")
         return jsonify({"error": "Internal error — please try again."}), 500
