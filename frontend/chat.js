@@ -313,7 +313,11 @@ function renderQuickReplies(chips, followUpText, botContext) {
                 botContext &&
                 botContext.includes("Hi, my name is Rammy");
 
-            const context = (!isWelcomeChip && botContext)
+            const isContactHRChip =
+                botContext &&
+                (botContext.includes("HRS@wcupa.edu") || botContext.includes("610-436-2800") || botContext.includes("Reach WCU HR"));
+
+            const context = (!isWelcomeChip && !isContactHRChip && botContext)
                 ? (followUpText || botContext)
                 : "";
 
