@@ -74,6 +74,9 @@ services:
       - MINIO_USER=${MINIO_USER:-minioadmin}
       - MINIO_PASS=${MINIO_PASS:-minioadmin}
       - MINIO_BUCKET=${MINIO_BUCKET:-documents}
+      # PDF_PROXY_BASE is the browser-accessible URL for the Node PDF proxy.
+      # Override this in .env when deploying (e.g. https://your-domain.com/api/pdf).
+      - PDF_PROXY_BASE=${PDF_PROXY_BASE:-http://localhost:3000/api/pdf}
     ports:
       - "5001:5001"
     depends_on:
