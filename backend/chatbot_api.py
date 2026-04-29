@@ -1257,6 +1257,11 @@ def chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
+    # PII check runs before everything else -- including the guided flow --
+    # so sensitive data is never processed regardless of intent detection.
+    if contains_pii(strip_regarding_context(message)):
+        return jsonify({"reply": PII_WARNING_REPLY})
+
     with _cache_lock:
         current_chunks = list(_chunks)
 
