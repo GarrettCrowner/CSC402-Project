@@ -259,7 +259,7 @@ QDRANT_HOST       = os.getenv("QDRANT_HOST", "qdrant")   # Docker service name
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = "rammy_hr"
 EMBED_MODEL       = "all-MiniLM-L6-v2"
-QDRANT_TOP_K      = 7   # number of chunks to retrieve per query
+QDRANT_TOP_K      = 5   # number of chunks to retrieve per query
 
 PII_WARNING_REPLY = (
     "For your privacy, please do not include personal information in chat. "
@@ -876,9 +876,11 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             )
 
         if FLOW_PROGRESS["step"] == "hours":
-            FLOW_PROGRESS["hours"] = message_lower
+            group    = FLOW_PROGRESS.get("group", "")
+            emp_type = FLOW_PROGRESS.get("type", "")
+            hours    = message_lower
             reset_flow()
-            return None
+            return f"__SYNTHESIZED__What health insurance benefits and coverage is a {emp_type} {hours} {group} employee eligible for at WCU?"
 
     # --- Retirement Eligibility ----------------------------------------------
     if intent == "retirement":
@@ -890,9 +892,9 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             )
 
         if FLOW_PROGRESS["step"] == "retirement_status":
-            FLOW_PROGRESS["type"] = message_lower
+            emp_type = message_lower
             reset_flow()
-            return None
+            return f"__SYNTHESIZED__What retirement plans and contribution options is a {emp_type} employee eligible for at WCU?"
 
     # --- Leave Time Eligibility ----------------------------------------------
     if intent == "leave":
@@ -912,9 +914,10 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             )
 
         if FLOW_PROGRESS["step"] == "group":
-            FLOW_PROGRESS["group"] = message_lower
+            hours = FLOW_PROGRESS.get("hours", "")
+            group = message_lower
             reset_flow()
-            return None
+            return f"__SYNTHESIZED__What leave time and vacation accrual benefits is a {hours} {group} employee eligible for at WCU?"
 
     # --- FMLA Eligibility ----------------------------------------------------
     if intent == "fmla":
@@ -934,9 +937,10 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             )
 
         if FLOW_PROGRESS["step"] == "time_worked":
-            FLOW_PROGRESS["hours"] = message_lower
+            group       = FLOW_PROGRESS.get("group", "")
+            time_worked = message_lower
             reset_flow()
-            return None
+            return f"__SYNTHESIZED__Is a {group} employee who has worked {time_worked} for one year and 1250 hours eligible for FMLA leave at WCU? What are the details?"
 
     # --- FSA Eligibility -----------------------------------------------------
     if intent == "fsa":
@@ -948,9 +952,9 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             )
 
         if FLOW_PROGRESS["step"] == "fsa_type":
-            FLOW_PROGRESS["type"] = message_lower
+            fsa_type = message_lower
             reset_flow()
-            return None
+            return f"__SYNTHESIZED__Who is eligible for a {fsa_type} at WCU and how does it work?"
 
     return None
 
@@ -1268,6 +1272,22 @@ def chat():
     guided_reply = handle_guided_flow(message, history)
 
     if guided_reply:
+        # If the flow returned a synthesized query, pass it to ask_model
+        # so Qdrant retrieves specific eligibility context rather than
+        # returning a vague answer based on the raw chip text.
+        if guided_reply.startswith("__SYNTHESIZED__"):
+            synthesized_query = guided_reply[len("__SYNTHESIZED__"):]
+            try:
+                reply, tokens = ask_model(_client, synthesized_query, current_chunks, history)
+            except Exception as e:
+                print(f"[/chat] Synthesized query error: {e}")
+                return jsonify({"error": "Internal error -- please try again."}), 500
+            is_oos = any(phrase in reply.lower() for phrase in [
+                "outside", "can't help with that", "not able to", "reach out to hr",
+                "hrs@wcupa", "contact hr", "610-436-2800"
+            ])
+            log_interaction(message, reply, is_oos, tokens)
+            return jsonify({"reply": reply})
         return jsonify({"reply": guided_reply})
 
     try:
