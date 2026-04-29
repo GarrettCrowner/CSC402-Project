@@ -1,11 +1,11 @@
 """
-Rammy HR Chatbot — Python Flask Backend (Optimized)
+Rammy HR Chatbot -- Python Flask Backend (Optimized)
 
 Changes vs original chatbot.py:
   - Wrapped in Flask so Node.js (or any client) can call it over HTTP.
   - Sources are fetched ONCE on startup and cached; /refresh endpoint reloads them.
   - Removed CLI loop (now an API service).
-  - Fixed OpenAI call: client.responses.create → client.chat.completions.create
+  - Fixed OpenAI call: client.responses.create -> client.chat.completions.create
     (responses.create is not a valid OpenAI Python SDK method).
   - PII check and small-talk logic are unchanged.
   - Chunk scoring is unchanged; phrase-boost table is easier to extend.
@@ -35,7 +35,7 @@ from difflib import get_close_matches
 GLOBAL_HISTORY = []
 MAX_HISTORY = 20
 
-# ─── Guided Eligibility Flow State ────────────────────────────────────────────
+# --- Guided Eligibility Flow State --------------------------------------------
 
 FLOW_PROGRESS = {
     "intent": None,
@@ -100,7 +100,7 @@ INTENT_PHRASES = {
     ]
 }
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# --- Config -------------------------------------------------------------------
 
 OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY", "")
 OPENAI_ORG_ID    = os.getenv("OPENAI_ORG_ID", "")
@@ -109,25 +109,29 @@ OPENAI_PROJECT_ID = os.getenv("OPENAI_PROJECT_ID", "")
 MODEL = "gpt-4.1-mini"
 
 ALLOWED_URLS = [
-    # ── Core HR ─────────────────────────────────────────────
+    # -- Core HR ---------------------------------------------
     "https://www.wcupa.edu/hr/faqs.aspx",
     "https://www.wcupa.edu/hr/employee-labor-relations.aspx",
     "https://www.wcupa.edu/hr/student-employment.aspx",
     "https://www.wcupa.edu/hr/professional-development.aspx",
     "https://www.wcupa.edu/hr/why-work-at-wcu.aspx",
 
-    # ── Employment / Applications ───────────────────────────
+    # -- Employment / Applications ---------------------------
     "https://www.schooljobs.com/careers/wcupa",
 
-    # ── I-9 / Verification ──────────────────────────────────
+    # -- I-9 / Verification ----------------------------------
     "https://www.uscis.gov/i-9-central/form-i-9-acceptable-documents",
 
-    # ── Leave ───────────────────────────────────────────────
+    # -- Leave -----------------------------------------------
     "https://www.wcupa.edu/hr/FMLA.aspx",
+    "https://www.wcupa.edu/hr/leave.aspx",
     "https://www.passhe.edu/hr/benefits/life-events/index.html",
     "https://www.passhe.edu/hr/benefits/leave/index.html",
+    "https://www.passhe.edu/hr/benefits/leave/personal-leave.html",
+    "https://www.passhe.edu/hr/benefits/leave/sick-leave.html",
+    "https://www.passhe.edu/hr/benefits/leave/vacation.html",
 
-    # ── Benefits ────────────────────────────────────────────
+    # -- Benefits --------------------------------------------
     "https://www.wcupa.edu/hr/employee-benefits-vs-benefits-by-employee-group.aspx",
     "https://www.passhe.edu/hr/benefits/index.html",
     "https://www.passhe.edu/hr/benefits/healthcare/index.html",
@@ -140,10 +144,10 @@ ALLOWED_URLS = [
     "https://www.passhe.edu/hr/benefits/pslf.html",
     "https://www.passhe.edu/hr/benefits/beneficiaries.html",
 
-    # ── FSA / Docs ──────────────────────────────────────────
+    # -- FSA / Docs ------------------------------------------
     "https://www.passhe.edu/hr/benefits/documents/fsa/2026-fsa-handbook.pdf",
 
-    # ── Retirement ──────────────────────────────────────────
+    # -- Retirement ------------------------------------------
     "https://www.passhe.edu/hr/benefits/retirement/index.html",
     "https://www.passhe.edu/hr/benefits/retirement/voluntary-retirement-plans.html",
     "https://www.passhe.edu/hr/benefits/retirement/tsa.html",
@@ -151,11 +155,11 @@ ALLOWED_URLS = [
     "https://www.passhe.edu/hr/benefits/retirement/arp.html",
     "https://www.passhe.edu/hr/benefits/retirement/sers.html",
 
-    # ── Retirees ────────────────────────────────────────────
+    # -- Retirees --------------------------------------------
     "https://www.passhe.edu/hr/benefits/retirees/index.html",
     "https://www.passhe.edu/hr/benefits/retirees/prospective/index.html",
 
-    # ── External Retirement Providers ───────────────────────
+    # -- External Retirement Providers -----------------------
     "https://www.tiaa.org/public/tcm/passhe/home",
     "https://retirementatwork.org/wcupa/",
     "https://sers.pa.gov/members/",
@@ -165,34 +169,34 @@ ALLOWED_URLS = [
     "https://www.fidelity.com",
     "https://www.tiaa.org",
 
-    # ── Tuition ─────────────────────────────────────────────
+    # -- Tuition ---------------------------------------------
     "https://www.wcupa.edu/hr/tuition-waiver.aspx",
     "https://www.wcupa.edu/hr/tuition-waiver-information.aspx",
 
-    # ── Payroll / Schedule ──────────────────────────────────
+    # -- Payroll / Schedule ----------------------------------
     "https://www.wcupa.edu/_information/AFA/fbs/payroll.aspx",
     "https://www.passhe.edu/hr/ooc/paydays-holidays.html",
 
-    # ── Portal / Tools ──────────────────────────────────────
+    # -- Portal / Tools --------------------------------------
     "https://portal.passhe.edu/ijr/portal",
 
-    # ── Healthcare Providers ────────────────────────────────
+    # -- Healthcare Providers --------------------------------
     "https://www.highmark.com/member/member-guide",
     "https://www.aetna.com/",
 
-    # ── Employee Assistance / SEAP ──────────────────────────
+    # -- Employee Assistance / SEAP --------------------------
     "https://www.liveandworkwell.com",
 
-    # ── Parking ─────────────────────────────────────────────
+    # -- Parking ---------------------------------------------
     "https://www.wcupa.edu/dps/parkingservices/parkingPermits.aspx",
     "https://www.wcupa.edu/dps/parkingservices/employeeRegulations.aspx",
     "https://www.wcupa.edu/dps/parkingservices/faqs.aspx",
 
-    # ── Calendar ────────────────────────────────────────────
+    # -- Calendar --------------------------------------------
     "https://www.wcupa.edu/registrar/calendar/"
 ]
 
-# ─── Analytics Config ────────────────────────────────────────────────────────
+# --- Analytics Config --------------------------------------------------------
 ANALYTICS_LOG = os.getenv("ANALYTICS_LOG", "/app/analytics.jsonl")
 _analytics_lock = threading.Lock()
 
@@ -250,7 +254,7 @@ def log_interaction(question: str, reply: str, is_out_of_scope: bool, tokens: di
 
 OUT_OF_SCOPE_REPLY = "I can not answer that question"
 
-# ─── Qdrant Config ────────────────────────────────────────────────────────────
+# --- Qdrant Config ------------------------------------------------------------
 QDRANT_HOST       = os.getenv("QDRANT_HOST", "qdrant")   # Docker service name
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = "rammy_hr"
@@ -275,7 +279,7 @@ IDENTITY_REPLY = (
     "I'm here to help with HR-related questions."
 )
 
-# ─── Small Talk ───────────────────────────────────────────────────────────────
+# --- Small Talk ---------------------------------------------------------------
 
 _GREETING_RE    = re.compile(r"^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b", re.IGNORECASE)
 _HOW_ARE_YOU_RE = re.compile(r"^\s*(how\s+are\s+you|hru|how's\s+it\s+going)\b", re.IGNORECASE)
@@ -318,7 +322,7 @@ def small_talk_kind(text: str) -> Optional[str]:
     return None
 
 
-# ─── PII Detection ────────────────────────────────────────────────────────────
+# --- PII Detection ------------------------------------------------------------
 
 EMAIL_RE          = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 PHONE_RE          = re.compile(r"\b(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.]?)\d{3}[\s\-.]?\d{4}\b")
@@ -332,17 +336,29 @@ NAME_INTRO_RE = re.compile(r"\b(my name is|this is)\s+[A-Za-z]+(?:\s+[A-Za-z]+){
 LONG_ID_RE    = re.compile(r"\b\d{6,}\b")
 BANK_CARD_RE  = re.compile(r"\b(?:\d[ -]*?){13,16}\b")
 
+# Known public WCU HR contact details -- never flag these as PII.
+_WCU_WHITELIST = [
+    "HRS@wcupa.edu",
+    "hrs@wcupa.edu",
+    "610-436-2800",
+    "6104362800",
+]
 
 def contains_pii(text: str) -> bool:
     if not text or not text.strip():
         return False
-    return any(p.search(text) for p in [
+    # Scrub known public WCU HR contacts before checking so Rammy's own
+    # replies (bundled into chip `regarding:` context) don't trigger false positives.
+    scrubbed = text
+    for safe in _WCU_WHITELIST:
+        scrubbed = scrubbed.replace(safe, "")
+    return any(p.search(scrubbed) for p in [
         EMAIL_RE, PHONE_RE, SSN_RE, STREET_ADDRESS_RE,
         BANK_CARD_RE, NAME_INTRO_RE, LONG_ID_RE,
     ])
 
 
-# ─── Text Utilities ───────────────────────────────────────────────────────────
+# --- Text Utilities -----------------------------------------------------------
 
 def normalize_text(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
@@ -373,7 +389,7 @@ def html_to_text(html: str) -> str:
     return text[:150_000]
 
 
-# ─── Source Fetching ──────────────────────────────────────────────────────────
+# --- Source Fetching ----------------------------------------------------------
 
 def fetch_sources() -> Dict[str, str]:
     headers = {"User-Agent": "RammyHRBot/2.0"}
@@ -388,7 +404,7 @@ def fetch_sources() -> Dict[str, str]:
     return pages
 
 
-# ─── Chunking ─────────────────────────────────────────────────────────────────
+# --- Chunking -----------------------------------------------------------------
 
 def split_into_chunks(text: str, url: str, max_len: int = 700) -> List[Dict[str, str]]:
     chunks: List[Dict[str, str]] = []
@@ -428,7 +444,7 @@ def build_chunks(pages: Dict[str, str]) -> List[Dict[str, str]]:
     return all_chunks
 
 
-# ─── PDF URL Resolution ───────────────────────────────────────────────────────
+# --- PDF URL Resolution -------------------------------------------------------
 
 # The Node.js server exposes GET /api/pdf/<filename> as a proxy to MinIO.
 # This base URL must be reachable from the user's browser.
@@ -439,15 +455,15 @@ def pdf_label_to_url(source_label: str) -> str:
     """
     Converts a Qdrant payload url like 'pdf:employee-handbook.pdf'
     into a browser-accessible download URL via the Node proxy.
-    e.g. → 'http://localhost:3000/api/pdf/employee-handbook.pdf'
+    e.g. -> 'http://localhost:3000/api/pdf/employee-handbook.pdf'
     """
     filename = source_label[len("pdf:"):]  # strip the 'pdf:' prefix
     return f"{PDF_PROXY_BASE}/{quote(filename)}"
 
 
-# ─── Qdrant Semantic Retrieval ───────────────────────────────────────────────
+# --- Qdrant Semantic Retrieval -----------------------------------------------
 # Replaces the previous keyword-scoring approach.
-# build_context() API is unchanged — the rest of the file is unaffected.
+# build_context() API is unchanged -- the rest of the file is unaffected.
 
 def build_context(question: str, chunks: object = None) -> str:
     """
@@ -458,7 +474,7 @@ def build_context(question: str, chunks: object = None) -> str:
     global _qdrant_client, _embed_model
 
     if _qdrant_client is None or _embed_model is None:
-        print("[retrieval] Qdrant client or embed model not initialised — falling back to empty context.")
+        print("[retrieval] Qdrant client or embed model not initialised -- falling back to empty context.")
         return ""
 
     try:
@@ -482,7 +498,7 @@ def build_context(question: str, chunks: object = None) -> str:
         if not r.payload.get("text"):
             continue
         raw_url = r.payload.get("url", "")
-        # Resolve pdf: labels → real browser-accessible URLs via the Node proxy
+        # Resolve pdf: labels -> real browser-accessible URLs via the Node proxy
         resolved_url = pdf_label_to_url(raw_url) if raw_url.startswith("pdf:") else raw_url
         is_pdf = raw_url.startswith("pdf:")
         selected.append({"url": resolved_url, "text": r.payload.get("text", ""), "raw_url": raw_url, "is_pdf": is_pdf})
@@ -510,7 +526,7 @@ def build_context(question: str, chunks: object = None) -> str:
     return "\n\n".join(parts) + f"\n\nAvailable source URLs:\n{source_list}"
 
 
-# ─── Link Sanitisation ───────────────────────────────────────────────────────
+# --- Link Sanitisation -------------------------------------------------------
 
 def linkify_contacts(text: str) -> str:
     """
@@ -580,7 +596,7 @@ def linkify_contacts(text: str) -> str:
     return text
 
 
-# ─── Prompts ──────────────────────────────────────────────────────────────────
+# --- Prompts ------------------------------------------------------------------
 
 def build_hr_instructions(context: str) -> str:
     # Detect whether context has real web URLs or only internal pdf: labels.
@@ -603,7 +619,7 @@ def build_hr_instructions(context: str) -> str:
             "  Example: <a href=\"https://retirementatwork.org/wcupa/\">Retirement@Work</a>"
         )
     elif has_pdf_source:
-        # Extract all pdf: filenames — filenames may contain spaces so we match
+        # Extract all pdf: filenames -- filenames may contain spaces so we match
         # up to the end of the line or a comma, not just non-whitespace chars.
         pdf_names = re.findall(r"pdf:([^\n,]+?)(?=\s*(?:,|\n|$))", context)
         pdf_names = [n.strip() for n in pdf_names if n.strip()]
@@ -622,7 +638,7 @@ def build_hr_instructions(context: str) -> str:
             "- End your response with a clickable link to the PDF using this EXACT format\\n"
             "  (double quotes around href, full URL including http://localhost:3000):\\n"
             f"{pdf_link_examples}"
-            "- Use the COMPLETE filename exactly as it appears after 'pdf:' in the source — including spaces.\\n"
+            "- Use the COMPLETE filename exactly as it appears after 'pdf:' in the source -- including spaces.\\n"
             "- Do NOT shorten, truncate, or alter the filename in any way.\\n"
             "- Do NOT invent filenames. Only link files whose 'pdf:' label appears in the context."
         )
@@ -637,7 +653,7 @@ You are Rammy, the West Chester University mascot and HR assistant. You are warm
 
 Rules:
 - Only answer HR-related questions using the context provided below.
-- If the user sends a short topic phrase (e.g. "Retirement plans", "Benefits & insurance", "Parking permits"), treat it as a request for a brief overview of that topic — do NOT return OUTOFSCOPE.
+- If the user sends a short topic phrase (e.g. "Retirement plans", "Benefits & insurance", "Parking permits"), treat it as a request for a brief overview of that topic -- do NOT return OUTOFSCOPE.
 - Respond naturally in 1-3 sentences. Be concise but friendly.
 {link_rule}
 - If the answer is simply not in the context, respond with exactly the word: OUTOFSCOPE
@@ -670,7 +686,7 @@ Context:
 
 def build_out_of_scope_prompt(question: str) -> str:
     return f"""
-You are Rammy, the West Chester University mascot — friendly, casual, and upbeat.
+You are Rammy, the West Chester University mascot -- friendly, casual, and upbeat.
 
 The user asked: "{question}"
 
@@ -679,12 +695,12 @@ benefits, retirement plans (403b, 457, ARP, SERS), payroll, parking permits,
 FMLA and leave, workers compensation, tuition waiver, I-9 documentation,
 employee relations, professional development, and the Employee Self-Service portal.
 
-Write a short, friendly 1-2 sentence decline in Rammy's voice. Be warm and helpful —
-suggest they contact HR directly if it seems relevant — always formatted as HTML links:
+Write a short, friendly 1-2 sentence decline in Rammy's voice. Be warm and helpful --
+suggest they contact HR directly if it seems relevant -- always formatted as HTML links:
 <a href="mailto:HRS@wcupa.edu">HRS@wcupa.edu</a> or <a href="tel:6104362800">610-436-2800</a>
-Do not show raw email addresses or phone numbers — always use HTML anchor tags.
+Do not show raw email addresses or phone numbers -- always use HTML anchor tags.
 Do not use bullet points or markdown. Never say "I cannot answer that question" verbatim.
-Vary your response naturally — don't use the same phrasing every time.
+Vary your response naturally -- don't use the same phrasing every time.
 """.strip()
 
 def build_smalltalk_prompt(user_text: str) -> str:
@@ -696,7 +712,7 @@ The user said: {user_text}
 Respond in 1-2 sentences. Be warm and friendly but straightforward.
 Do not use animal puns, rhymes, or wordplay.
 Do not reference cats, paws, or any animal other than rams.
-You are a ram — stay on brand.
+You are a ram -- stay on brand.
 Do not answer non-HR questions beyond simple small talk.
 If you mention the HR email or phone number, always format them as HTML anchor tags:
 <a href="mailto:HRS@wcupa.edu">HRS@wcupa.edu</a> and <a href="tel:6104362800">610-436-2800</a>
@@ -709,7 +725,7 @@ For greetings, offer 2-4 common topic options using this exact format on its own
 
 # Intent
 
-# ─── Guided Flow Helpers ─────────────────────────────────────────────────────
+# --- Guided Flow Helpers -----------------------------------------------------
 
 def normalize_user_input(text: str) -> str:
     text = text.lower()
@@ -833,12 +849,12 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
         FLOW_PROGRESS["step"] = None
         intent = incoming_intent
 
-    # ─── Health Insurance Eligibility ────────────────────────────────────────
+    # --- Health Insurance Eligibility ----------------------------------------
     if intent == "health_insurance":
         if FLOW_PROGRESS["step"] is None:
             FLOW_PROGRESS["step"] = "group"
             return (
-                "To determine your health insurance eligibility, I’ll need a bit more information.\n"
+                "To determine your health insurance eligibility, I'll need a bit more information.\n"
                 "Which employee group are you in?\n"
                 "[OPTIONS: AFSCME | SCUPA | OPEIU | POA/SPFPA | APSCUF Coaches | APSCUF Faculty | Non-Represented]"
             )
@@ -864,13 +880,13 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             reset_flow()
             return None
 
-    # ─── Retirement Eligibility ──────────────────────────────────────────────
+    # --- Retirement Eligibility ----------------------------------------------
     if intent == "retirement":
         if FLOW_PROGRESS["step"] is None:
             FLOW_PROGRESS["step"] = "retirement_status"
             return (
                 "To determine your eligibility for retirement contributions, please choose the option that best describes you:\n"
-                "[OPTIONS: Permanent full-time (≥50%) | Temporary ≥50% (1+ year) | Faculty ≥50% workload | Part-time <50% but 750+ hours]"
+                "[OPTIONS: Permanent full-time (>=50%) | Temporary >=50% (1+ year) | Faculty >=50% workload | Part-time <50% but 750+ hours]"
             )
 
         if FLOW_PROGRESS["step"] == "retirement_status":
@@ -878,7 +894,7 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             reset_flow()
             return None
 
-    # ─── Leave Time Eligibility ──────────────────────────────────────────────
+    # --- Leave Time Eligibility ----------------------------------------------
     if intent == "leave":
         if FLOW_PROGRESS["step"] is None:
             FLOW_PROGRESS["step"] = "hours"
@@ -900,7 +916,7 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             reset_flow()
             return None
 
-    # ─── FMLA Eligibility ────────────────────────────────────────────────────
+    # --- FMLA Eligibility ----------------------------------------------------
     if intent == "fmla":
         if FLOW_PROGRESS["step"] is None:
             FLOW_PROGRESS["step"] = "group"
@@ -922,7 +938,7 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
             reset_flow()
             return None
 
-    # ─── FSA Eligibility ─────────────────────────────────────────────────────
+    # --- FSA Eligibility -----------------------------------------------------
     if intent == "fsa":
         if FLOW_PROGRESS["step"] is None:
             FLOW_PROGRESS["step"] = "fsa_type"
@@ -940,7 +956,7 @@ def handle_guided_flow(message: str, history: list) -> Optional[str]:
 
 
 
-# ─── Model Call ───────────────────────────────────────────────────────────────
+# --- Model Call ---------------------------------------------------------------
 
 def ask_model(
     client: OpenAI,
@@ -961,7 +977,9 @@ def ask_model(
             "total":      getattr(u, "total_tokens", 0),
         }
 
-    if contains_pii(question):
+    # Strip any (regarding: ...) chip context before PII check -- the appended
+    # text may contain Rammy's own email/phone output, causing false positives.
+    if contains_pii(strip_regarding_context(question)):
         return PII_WARNING_REPLY, _tokens
 
     kind = small_talk_kind(question)
@@ -1000,7 +1018,7 @@ def ask_model(
                 if answer and "OUTOFSCOPE" not in answer:
                     _tokens = _extract_tokens(response)
                     return answer, _tokens
-        # No history or no context found — treat as small talk
+        # No history or no context found -- treat as small talk
         kind = "greeting"
 
     if kind:
@@ -1024,7 +1042,7 @@ def ask_model(
             return linkify_contacts(oos_response.choices[0].message.content.strip() or OUT_OF_SCOPE_REPLY), _tokens
 
         system_prompt = build_hr_instructions(context)
-        # Strip any leading assistant messages — OpenAI requires history to
+        # Strip any leading assistant messages -- OpenAI requires history to
         # start with a user turn. A leading assistant message (e.g. the welcome
         # greeting stored in history) causes GPT to respond with a greeting
         # instead of answering the actual question.
@@ -1037,7 +1055,7 @@ def ask_model(
             + [{"role": "user", "content": question}]
         )
 
-    # ── FIX: use chat.completions.create (not client.responses.create) ──
+    # -- FIX: use chat.completions.create (not client.responses.create) --
     response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
@@ -1065,11 +1083,11 @@ def ask_model(
     return answer, _tokens
 
 
-# ─── Flask App ────────────────────────────────────────────────────────────────
+# --- Flask App ----------------------------------------------------------------
 
 app = Flask(__name__)
 
-# ─── MinIO Helper ─────────────────────────────────────────────────────────────
+# --- MinIO Helper -------------------------------------------------------------
 
 # Module-level MinIO config (mirrors docker-compose environment variables)
 MINIO_HOST   = os.getenv("MINIO_HOST",   "minio:9000")
@@ -1083,7 +1101,7 @@ try:
     MINIO_AVAILABLE = True
 except ImportError:
     MINIO_AVAILABLE = False
-    print("[minio] WARNING: minio package not installed — PDF serving disabled.")
+    print("[minio] WARNING: minio package not installed -- PDF serving disabled.")
 
 def _get_minio_client():
     """Return a connected Minio client, or None if unavailable."""
@@ -1096,13 +1114,13 @@ def _get_minio_client():
         return None
 
 
-# ─── Document Proxy Endpoint ──────────────────────────────────────────────────
+# --- Document Proxy Endpoint --------------------------------------------------
 
 @app.route("/document/<path:filename>", methods=["GET"])
 def serve_document(filename):
     """
     Proxies a PDF from MinIO so the browser can open it as a real URL.
-    e.g. GET /document/benefits-guide.pdf  →  streams the PDF bytes.
+    e.g. GET /document/benefits-guide.pdf  ->  streams the PDF bytes.
 
     This turns the internal  pdf:benefits-guide.pdf  source label into a
     clickable  http://localhost:5001/document/benefits-guide.pdf  link.
@@ -1137,7 +1155,7 @@ def serve_document(filename):
         print(f"[document] Unexpected error for '{filename}': {e}")
         return jsonify({"error": "Could not retrieve document."}), 500
 
-# Module-level state — initialised once on startup
+# Module-level state -- initialised once on startup
 _chunks: List[Dict[str, str]] = []   # kept for API compat; no longer used for retrieval
 _cache_lock = threading.Lock()
 _client: Optional[OpenAI] = None
@@ -1148,7 +1166,7 @@ _startup_done = False
 
 @app.before_request
 def _ensure_startup():
-    """Runs once on the first request — handles flask run / gunicorn startup."""
+    """Runs once on the first request -- handles flask run / gunicorn startup."""
     global _startup_done, _client
     if _startup_done:
         return
@@ -1197,7 +1215,7 @@ def _init_client() -> OpenAI:
 
 def _load_sources() -> None:
     """Re-connects to Qdrant (e.g. after running qdrant_setup.py externally).
-    Does NOT reload the embedding model if already loaded — avoids triple-init."""
+    Does NOT reload the embedding model if already loaded -- avoids triple-init."""
     global _qdrant_client
     try:
         _qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
@@ -1228,7 +1246,7 @@ def chat():
 
     # Prefer client-sent history (the frontend is the source of truth for
     # conversation context). Fall back to GLOBAL_HISTORY only if the client
-    # did not send any — e.g. during a /refresh ping or legacy callers.
+    # did not send any -- e.g. during a /refresh ping or legacy callers.
     client_history = data.get("history")
     if isinstance(client_history, list) and client_history:
         history = client_history[-MAX_HISTORY:]
@@ -1251,7 +1269,7 @@ def chat():
         reply, tokens = ask_model(_client, message, current_chunks, history)
     except Exception as e:
         print(f"[/chat] Error: {e}")
-        return jsonify({"error": "Internal error — please try again."}), 500
+        return jsonify({"error": "Internal error -- please try again."}), 500
 
     is_oos = any(phrase in reply.lower() for phrase in [
         "outside", "can't help with that", "not able to", "reach out to hr",
@@ -1266,7 +1284,7 @@ def chat():
 def serve_pdf(filename):
     """
     Fetches a PDF from MinIO using server-side credentials and streams it to the caller.
-    Called by the Node.js /api/pdf/* proxy — credentials never reach the browser.
+    Called by the Node.js /api/pdf/* proxy -- credentials never reach the browser.
     Flask's <path:filename> converter URL-decodes the name automatically, so
     'Dental%20Benefits.pdf' arrives here as 'Dental Benefits.pdf'.
     """
@@ -1276,7 +1294,7 @@ def serve_pdf(filename):
 
     client = _get_minio_client()
     if client is None:
-        return jsonify({"error": "Document storage unavailable — MinIO not configured."}), 503
+        return jsonify({"error": "Document storage unavailable -- MinIO not configured."}), 503
 
     print(f"[/pdf] Fetching '{filename}' from MinIO bucket '{MINIO_BUCKET}'")
 
@@ -1318,7 +1336,7 @@ def analytics():
     """
     Returns analytics data from the JSONL log.
     Query params:
-      ?limit=N   — return only the last N records (default 1000)
+      ?limit=N   -- return only the last N records (default 1000)
     """
     limit = int(request.args.get("limit", 1000))
     records = []
@@ -1338,7 +1356,7 @@ def analytics():
 
     records = records[-limit:]
 
-    # ── Aggregate metrics ────────────────────────────────────────────────────
+    # -- Aggregate metrics ----------------------------------------------------
     total = len(records)
     oos_count = sum(1 for r in records if r.get("out_of_scope"))
 
@@ -1392,7 +1410,7 @@ def analytics():
     })
 
 
-# ─── Entry Point ──────────────────────────────────────────────────────────────
+# --- Entry Point --------------------------------------------------------------
 
 if __name__ == "__main__":
     if not OPENAI_API_KEY:
