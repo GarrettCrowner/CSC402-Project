@@ -259,7 +259,7 @@ QDRANT_HOST       = os.getenv("QDRANT_HOST", "qdrant")   # Docker service name
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = "rammy_hr"
 EMBED_MODEL       = "all-MiniLM-L6-v2"
-QDRANT_TOP_K      = 5   # number of chunks to retrieve per query
+QDRANT_TOP_K      = 7   # number of chunks to retrieve per query
 
 PII_WARNING_REPLY = (
     "For your privacy, please do not include personal information in chat. "
